@@ -1,10 +1,28 @@
 import nibabel as nib
+import SimpleITK as sitk
 import numpy as np
 import os
 from utils.util import mkdir
 
+
 def is_image_file(filename):
-    return any(filename.endswith(extension) for extension in [".nii.gz"])
+    return any(filename.endswith(extension) for extension in [".nii.gz", '.nrrd'])
+
+
+def load_nrrd_img(filepath, dtype=None):
+    '''
+    NRRD Image Loader
+    :param filepath: path to the input NIFTI image
+    :param dtype: dataio type of the nifti numpy array
+    :return: return numpy array
+    '''
+    im = sitk.ReadImage(filepath)
+    im_arr = sitk.GetArrayFromImage(im)
+    if dtype is not None:
+        im_arr = im_arr.astype(dtype)
+    im_arr = np.squeeze(im_arr)
+
+    return im_arr, None
 
 
 def load_nifti_img(filepath, dtype):

@@ -5,6 +5,7 @@ from dataio.loader.test_dataset import TestDataset
 from dataio.loader.hms_dataset import HMSDataset
 from dataio.loader.cmr_3D_dataset import CMR3DDataset
 from dataio.loader.us_dataset import UltraSoundDataset
+from dataio.loader.rectum_segmentation_dataset import RectumSegmentationDataset
 
 
 def get_dataset(name):
@@ -18,7 +19,8 @@ def get_dataset(name):
         'rvsc_sax': CMR3DDataset,
         'hms_sax':  HMSDataset,
         'test_sax': TestDataset,
-        'us': UltraSoundDataset
+        'us': UltraSoundDataset,
+        'rectum': RectumSegmentationDataset
     }[name]
 
 
