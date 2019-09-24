@@ -6,6 +6,7 @@ from torch.autograd import Variable
 from torch.optim import lr_scheduler
 import time
 import numpy as np
+import tqdm
 ###############################################################################
 # Functions
 ###############################################################################
@@ -221,12 +222,15 @@ def measure_fp_bp_time(model, x, y):
     return elapsed_fp, elapsed_bp
 
 
-def benchmark_fp_bp_time(model, x, y, n_trial=1000):
+def benchmark_fp_bp_time(model, x, y, n_trial=1000, show_pbar=False):
     # transfer the model on GPU
     # model.cuda()
 
     # DRY RUNS
-    for i in range(10):
+    iterator = range(10)
+    if show_pbar:
+        iterator = tqdm.tqdm(iterator, desc='Dry Run')
+    for i in iterator:
         _, _ = measure_fp_bp_time(model, x, y)
 
     print('DONE WITH DRY RUNS, NOW BENCHMARKING')
@@ -236,7 +240,10 @@ def benchmark_fp_bp_time(model, x, y, n_trial=1000):
     t_backward = []
     
     print('trial: {}'.format(n_trial))
-    for i in range(n_trial):
+    iterator = range(n_trial)
+    if show_pbar:
+        iterator = tqdm.tqdm(iterator, desc='Benchmarking')
+    for i in iterator:
         t_fp, t_bp = measure_fp_bp_time(model, x, y)
         t_forward.append(t_fp)
         t_backward.append(t_bp)

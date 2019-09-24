@@ -149,7 +149,7 @@ class FeedForwardSegmentation(BaseModel):
         if self.use_cuda:
             inp_array = inp_array.cuda()
             out_array = out_array.cuda()
-        fp, bp = benchmark_fp_bp_time(self.net, inp_array, out_array)
+        fp, bp = benchmark_fp_bp_time(self.net, inp_array, out_array, n_trial=50, show_pbar=True)
 
         bsize = size[0]
         return fp/float(bsize), bp/float(bsize)
