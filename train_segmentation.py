@@ -1,4 +1,5 @@
 import numpy
+import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
@@ -32,8 +33,11 @@ def train(arguments):
     # Setup the NN Model
     model = get_model(json_opts.model)
     if network_debug:
+        augmentation_opts = getattr(json_opts.augmentation, arch_type)
+        input_size = (train_opts.batchSize, json_opts.model.input_nc, *augmentation_opts.patch_size)
         print('# of pars: ', model.get_number_parameters())
-        print('fp time: {0:.3f} sec\tbp time: {1:.3f} sec per sample'.format(*model.get_fp_bp_time()))
+        print('fp time: {0:.3f} sec\tbp time: {1:.3f} sec per sample'.format(*model.get_fp_bp_time(size=input_size)))
+        print('Max_memory used: {0:.3f}'.format(torch.cuda.max_memory_allocated()))
         exit()
 
     # Setup Data Loader

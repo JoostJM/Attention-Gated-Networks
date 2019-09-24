@@ -22,9 +22,10 @@ class BaseModel():
 
     def initialize(self, opt, **kwargs):
         self.gpu_ids = opt.gpu_ids
+        self.use_cuda = self.gpu_ids is not None
         self.isTrain = opt.isTrain
-        self.ImgTensor = torch.cuda.FloatTensor if self.gpu_ids else torch.Tensor
-        self.LblTensor = torch.cuda.FloatTensor if self.gpu_ids else torch.Tensor
+        # self.ImgTensor = torch.cuda.FloatTensor if self.use_cuda else torch.Tensor
+        # self.LblTensor = torch.cuda.FloatTensor if self.use_cuda else torch.Tensor
         self.save_dir = opt.save_dir; mkdir(self.save_dir)
 
     def set_input(self, input):
@@ -53,7 +54,7 @@ class BaseModel():
         return {}
 
     def get_input_size(self):
-        return self.input.size() if input else None
+        return self.input.size() if self.input else None
 
     def save(self, label):
         pass
@@ -64,7 +65,7 @@ class BaseModel():
         save_filename = '{0:03d}_net_{1}.pth'.format(epoch_label, network_label)
         save_path = os.path.join(self.save_dir, save_filename)
         torch.save(network.cpu().state_dict(), save_path)
-        if len(gpu_ids) and torch.cuda.is_available():
+        if gpu_ids and len(gpu_ids)>0 and torch.cuda.is_available():
             network.cuda(gpu_ids[0])
 
     # helper loading function that can be used by subclasses

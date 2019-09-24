@@ -53,7 +53,6 @@ class FeedForwardSegmentation(BaseModel):
             self.optimizers.append(self.optimizer_S)
 
             # print the network details
-            # print the network details
             if kwargs.get('verbose', True):
                 print('Network is initialized')
                 print_network(self.net)
@@ -141,12 +140,15 @@ class FeedForwardSegmentation(BaseModel):
         return feature_extractor.forward(Variable(self.input))
 
     # returns the fp/bp times of the model
-    def get_fp_bp_time (self, size=None):
+    def get_fp_bp_time(self, size=None):
         if size is None:
             size = (1, 1, 160, 160, 96)
 
-        inp_array = Variable(torch.zeros(*size)).cuda()
-        out_array = Variable(torch.zeros(*size)).cuda()
+        inp_array = Variable(torch.zeros(*size))
+        out_array = Variable(torch.zeros(*size))
+        if self.use_cuda:
+            inp_array = inp_array.cuda()
+            out_array = out_array.cuda()
         fp, bp = benchmark_fp_bp_time(self.net, inp_array, out_array)
 
         bsize = size[0]

@@ -223,7 +223,7 @@ def measure_fp_bp_time(model, x, y):
 
 def benchmark_fp_bp_time(model, x, y, n_trial=1000):
     # transfer the model on GPU
-    model.cuda()
+    # model.cuda()
 
     # DRY RUNS
     for i in range(10):
