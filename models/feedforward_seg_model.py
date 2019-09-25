@@ -78,7 +78,7 @@ class FeedForwardSegmentation(BaseModel):
                 self.input = _input.cuda() if self.use_cuda else _input
             elif idx == 1:
                 self.target = Variable(_input.cuda()) if self.use_cuda else Variable(_input)
-                assert self.input.size() == self.target.size()
+                #assert self.input.size() == self.target.size()
 
     def forward(self, split):
         if split == 'train':
@@ -130,7 +130,11 @@ class FeedForwardSegmentation(BaseModel):
         return OrderedDict(seg_stats)
 
     def get_current_errors(self):
-        return OrderedDict([('Seg_Loss', self.loss_S.data[0])
+        if (len(self.loss_S.shape) == 0):
+            return OrderedDict([('Seg_Loss', self.loss_S.item())
+                            ])
+        else:
+            return OrderedDict([('Seg_Loss', self.loss_S.data[0])
                             ])
 
     def get_current_visuals(self):

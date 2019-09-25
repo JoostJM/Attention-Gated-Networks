@@ -40,6 +40,7 @@ class RectumSegmentationDataset(data.Dataset):
         if not self.preload_data:
             input, _ = load_nrrd_img(self.image_filenames[index])
             target, _ = load_nrrd_img(self.target_filenames[index], dtype=np.uint8)
+            target = target[:, :, :, np.newaxis]
         else:
             input = np.copy(self.raw_images[index])
             target = np.copy(self.raw_labels[index])
