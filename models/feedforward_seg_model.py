@@ -1,5 +1,4 @@
 import torch
-from torch.autograd import Variable
 import torch.optim as optim
 
 from collections import OrderedDict
@@ -77,18 +76,19 @@ class FeedForwardSegmentation(BaseModel):
             if idx == 0:
                 self.input = _input.cuda() if self.use_cuda else _input
             elif idx == 1:
-                self.target = Variable(_input.cuda()) if self.use_cuda else Variable(_input)
+                self.target = _input.cuda() if self.use_cuda else _input
                 #assert self.input.size() == self.target.size()
 
     def forward(self, split):
         if split == 'train':
-            self.prediction = self.net(Variable(self.input))
+            self.prediction = self.net(self.input)
         elif split == 'test':
-            self.prediction = self.net(Variable(self.input, volatile=True))
-            # Apply a softmax and return a segmentation map
-            self.logits = self.net.apply_argmax_softmax(self.prediction)
-            self.pred_seg = self.logits.data.max(1)[1].unsqueeze(1)
-            
+            with torch.no_grad():
+                self.prediction = self.net(self.input)
+                # Apply a softmax and return a segmentation map
+                self.logits = self.net.apply_argmax_softmax(self.prediction)
+                self.pred_seg = self.logits.data.max(1)[1].unsqueeze(1)
+
     def backward(self):
         self.loss_S = self.criterion(self.prediction, self.target)
         self.loss_S.backward()
@@ -144,15 +144,15 @@ class FeedForwardSegmentation(BaseModel):
 
     def get_feature_maps(self, layer_name, upscale):
         feature_extractor = HookBasedFeatureExtractor(self.net, layer_name, upscale)
-        return feature_extractor.forward(Variable(self.input))
+        return feature_extractor.forward(self.input)
 
     # returns the fp/bp times of the model
     def get_fp_bp_time(self, size=None):
         if size is None:
             size = (1, 1, 160, 160, 96)
 
-        inp_array = Variable(torch.zeros(*size))
-        out_array = Variable(torch.zeros(*size))
+        inp_array = torch.zeros(*size)
+        out_array = torch.zeros(*size)
         if self.use_cuda:
             inp_array = inp_array.cuda()
             out_array = out_array.cuda()

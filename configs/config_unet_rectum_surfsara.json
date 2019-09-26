@@ -5,8 +5,8 @@
     "save_epoch_freq": 10,
     "lr_policy": "step",
     "lr_decay_iters": 250,
-    "batchSize": 1,
-    "preloadData": false
+    "batchSize": 6,
+    "preloadData": true
   },
   "visualisation":{
     "display_port": 8097,
@@ -16,7 +16,7 @@
     "display_single_pane_ncols": 0
   },
   "data_path": {
-    "rectum": "../Data/Dataset_2x2x2"
+    "rectum": "/data/Dataset_2x2x2"
   },
   "augmentation": {
     "rectum": {
@@ -41,7 +41,7 @@
     "lr_rate": 1e-4,
     "l2_reg_weight": 1e-6,
     "feature_scale": 8,
-    "gpu_ids": [0],
+    "gpu_ids": [0, 1],
     "isTrain": true,
     "checkpoints_dir": "./checkpoints",
     "experiment_name": "experiment_unet_ct_multi_att_dsv",

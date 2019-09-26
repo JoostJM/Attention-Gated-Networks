@@ -3,6 +3,10 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+import gc
+import os
+from functools import reduce
+import operator as op
 
 from dataio.loader import get_dataset, get_dataset_path
 from dataio.transformation import get_dataset_transformation
@@ -56,6 +60,7 @@ def train(arguments):
     model.set_scheduler(train_opts)
     for epoch in range(model.which_epoch, train_opts.n_epochs):
         print('(epoch: %d, total # iters: %d)' % (epoch, len(train_loader)))
+        #map_memory(epoch, json_opts)
 
         # Training Iterations
         for epoch_iter, (images, labels) in tqdm(enumerate(train_loader, 1), total=len(train_loader)):
@@ -97,6 +102,29 @@ def train(arguments):
 
         # Update the model learning rate
         model.update_learning_rate()
+
+
+def map_memory(epoch, json_opts):
+    with open(os.path.join(json_opts.model.checkpoints_dir, 'gc_epoch_%i.txt' % epoch), mode='w') as file_fs:
+        total = 0
+        for obj in gc.get_objects():
+            try:
+                if torch.is_tensor(obj):
+                    t = obj
+                elif hasattr(obj, 'data') and torch.is_tensor(obj.data):
+                    t = obj
+                else:
+                    t = None
+
+                if t is not None and t.is_cuda:
+                    obj_size = reduce(op.mul, obj.size()) if len(obj.size()) > 0 else 0
+                    total += obj_size
+                    file_fs.write("%s\t%s\t%s\n" % (obj_size, type(obj), obj.size()))
+            except Exception:
+                pass
+        file_fs.write('total: %s\n' % total)
+        print('total: %s' % total)
+        print(torch.cuda.memory_allocated())
 
 
 if __name__ == '__main__':
