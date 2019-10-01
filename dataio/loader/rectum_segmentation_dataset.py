@@ -28,7 +28,7 @@ class RectumSegmentationDataset(data.Dataset):
         if self.preload_data:
             print('Preloading the {0} dataset ...'.format(split))
             self.raw_images = [load_nrrd_img(ii)[0] for ii in self.image_filenames]
-            self.raw_labels = [load_nrrd_img(ii, dtype=np.uint8)[0] for ii in self.target_filenames]
+            self.raw_labels = [load_nrrd_img(ii, dtype=np.uint8)[0][:, :, :, np.newaxis] for ii in self.target_filenames]
             print('Loading is done\n')
 
 
