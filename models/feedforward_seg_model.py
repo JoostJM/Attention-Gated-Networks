@@ -32,9 +32,9 @@ class FeedForwardSegmentation(BaseModel):
                                tensor_dim=opts.tensor_dim, feature_scale=opts.feature_scale,
                                attention_dsample=opts.attention_dsample)
         if self.use_cuda:
-            self.net = self.net.cuda()
+            self.net = self.net.cuda(self.gpu_ids[0])
             if len(self.gpu_ids) > 1:
-                self.net = torch.nn.DataParallel(self.net, self.gpu_ids)
+                self.net = torch.nn.DataParallel(self.net, self.gpu_ids, self.gpu_ids[0])
 
         # load the model if a path is specified or it is in inference mode
         if not self.isTrain or opts.continue_train:
