@@ -20,7 +20,7 @@
   },
   "augmentation": {
     "rectum": {
-      "shift": [0.1,0.1],
+      "shift": [0.1,0.1,0.1],
       "rotate": 15.0,
       "scale": [0.7,1.3],
       "intensity": [1.0,1.0],

@@ -26,7 +26,7 @@ setup(name='AttentionGatedNetworks',
         'torchsample==0.1.3',
       ],
       dependency_links=[
-          'https://github.com/ozan-oktay/torchsample/tarball/master#egg=torchsample-0.1.3'
+          'https://github.com/JoostJM/torchsample/archive/master.zip'
       ],
       packages=find_packages(exclude=('tests', 'docs'))
 )
