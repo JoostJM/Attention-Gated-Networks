@@ -58,6 +58,7 @@ def train(arguments):
 
     # Training Function
     model.set_scheduler(train_opts)
+    epoch = -1
     for epoch in range(model.which_epoch, train_opts.n_epochs):
         print('(epoch: %d, total # iters: %d)' % (epoch, len(train_loader)))
         #map_memory(epoch, json_opts)
@@ -102,6 +103,9 @@ def train(arguments):
 
         # Update the model learning rate
         model.update_learning_rate()
+
+    # Store the final model
+    model.save(epoch)
 
 
 def map_memory(epoch, json_opts):

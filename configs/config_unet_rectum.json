@@ -16,7 +16,7 @@
     "display_single_pane_ncols": 0
   },
   "data_path": {
-    "rectum": "../Data/Dataset_2x2x2"
+    "rectum": "../Data/Dataset_1x1x3_adc"
   },
   "augmentation": {
     "rectum": {
@@ -33,7 +33,7 @@
     "type":"seg",
     "continue_train": false,
     "which_epoch": -1,
-    "model_type": "unet_ct_multi_att_dsv",
+    "model_type": "unet_ct_single_att_dsv",
     "tensor_dim": "3D",
     "division_factor": 16,
     "input_nc": 3,
@@ -44,7 +44,7 @@
     "gpu_ids": [0],
     "isTrain": true,
     "checkpoints_dir": "./checkpoints",
-    "experiment_name": "experiment_unet_ct_multi_att_dsv",
+    "experiment_name": "unet_single_att_dsv_1x1x3_adc",
     "criterion": "dice_loss"
   }
 }
