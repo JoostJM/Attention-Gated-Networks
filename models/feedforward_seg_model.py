@@ -57,13 +57,13 @@ class FeedForwardSegmentation(BaseModel):
 
             # print the network details
             if kwargs.get('verbose', True):
-                print('Network is initialized')
+                self.logger.info('Network is initialized')
                 print_network(self.net)
 
     def set_scheduler(self, train_opt):
         for optimizer in self.optimizers:
             self.schedulers.append(get_scheduler(optimizer, train_opt))
-            print('Scheduler is added for optimiser {0}'.format(optimizer))
+            self.logger.info('Scheduler is added for optimiser {0}'.format(optimizer))
 
     def set_input(self, *inputs):
         # self.input.resize_(inputs[0].size()).copy_(inputs[0])

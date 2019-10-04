@@ -1,3 +1,4 @@
+import logging
 import os
 import numpy
 import torch
@@ -16,6 +17,7 @@ class BaseModel():
         self.gpu_ids = []
         self.which_epoch = int(0)
         self.path_pre_trained_model = None
+        self.logger = logging.getLogger(str(self.__module__))
 
     def name(self):
         return 'BaseModel'

@@ -1,5 +1,6 @@
 import numpy as np
 import pandas as pd
+import logging
 import os
 import ntpath
 import time
@@ -17,6 +18,7 @@ class Visualiser():
         self.name = os.path.basename(self.save_dir)
         self.saved = False
         self.display_single_pane_ncols = opt.display_single_pane_ncols
+        self.logger = logging.getLogger('visualizer')
 
         # Error plots
         self.error_plots = dict()
@@ -171,7 +173,7 @@ class Visualiser():
             if np.isscalar(v):
                 message += '%s: %.3f ' % (k, v)
 
-        print(message)
+        self.logger.info(message)
         with open(self.log_name, "a") as log_file:
             log_file.write('%s\n' % message)
 

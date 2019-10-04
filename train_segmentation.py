@@ -1,10 +1,11 @@
-import numpy
+import numpy as np
 import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 import gc
 import os
+import logging
 from functools import reduce
 import operator as op
 
@@ -13,11 +14,12 @@ from dataio.transformation import get_dataset_transformation
 from utils.util import json_file_to_pyobj
 from utils.visualiser import Visualiser
 from utils.error_logger import ErrorLogger
+from utils import _configure_logging
 
 from models import get_model
 
-def train(arguments):
 
+def train(arguments):
     # Parse input arguments
     json_filename = arguments.config
     network_debug = arguments.debug
@@ -29,6 +31,14 @@ def train(arguments):
     # Architecture type
     arch_type = train_opts.arch_type
 
+    experiment = json_opts.model.experiment_name
+
+    # Set up Logging
+    log_file = os.path.join(json_opts.model.checkpoints_dir, experiment + '.log')
+    _configure_logging(logging.INFO, True, log_file)
+    logger = logging.getLogger()
+    slack_logger = logging.getLogger('slack')
+
     # Setup Dataset and Augmentation
     ds_class = get_dataset(arch_type)
     ds_path  = get_dataset_path(arch_type, json_opts.data_path)
@@ -39,9 +49,9 @@ def train(arguments):
     if network_debug:
         augmentation_opts = getattr(json_opts.augmentation, arch_type)
         input_size = (train_opts.batchSize, json_opts.model.input_nc, *augmentation_opts.patch_size)
-        print('# of pars: ', model.get_number_parameters())
-        print('fp time: {0:.3f} sec\tbp time: {1:.3f} sec per sample'.format(*model.get_fp_bp_time(size=input_size)))
-        print('Max_memory used: {0:.3f}'.format(torch.cuda.max_memory_allocated()))
+        logger.info('# of pars: %s', model.get_number_parameters())
+        logger.info('fp time: {0:.3f} sec\tbp time: {1:.3f} sec per sample'.format(*model.get_fp_bp_time(size=input_size)))
+        logger.info('Max_memory used: {0:.3f}'.format(torch.cuda.max_memory_allocated()))
         exit()
 
     # Setup Data Loader
@@ -59,53 +69,73 @@ def train(arguments):
     # Training Function
     model.set_scheduler(train_opts)
     epoch = -1
-    for epoch in range(model.which_epoch, train_opts.n_epochs):
-        print('(epoch: %d, total # iters: %d)' % (epoch, len(train_loader)))
-        #map_memory(epoch, json_opts)
+    slack_logger.info('Starting training for experiment %s', json_opts.model.experiment_name)
+    try:
+        for epoch in range(model.which_epoch, train_opts.n_epochs):
+            logger.info('(epoch: %d, total # iters: %d)' % (epoch, len(train_loader)))
+            #map_memory(epoch, json_opts)
 
-        # Training Iterations
-        for epoch_iter, (images, labels) in tqdm(enumerate(train_loader, 1), total=len(train_loader)):
-            # Make a training update
-            model.set_input(images, labels)
-            model.optimize_parameters()
-            #model.optimize_parameters_accumulate_grd(epoch_iter)
-
-            # Error visualisation
-            errors = model.get_current_errors()
-            error_logger.update(errors, split='train')
-
-        # Validation and Testing Iterations
-        for loader, split in zip([valid_loader, test_loader], ['validation', 'test']):
-            for epoch_iter, (images, labels) in tqdm(enumerate(loader, 1), total=len(loader)):
-
-                # Make a forward pass with the model
+            # Training Iterations
+            for epoch_iter, (images, labels) in tqdm(enumerate(train_loader, 1), total=len(train_loader)):
+                # Make a training update
                 model.set_input(images, labels)
-                model.validate()
+                model.optimize_parameters()
+                #model.optimize_parameters_accumulate_grd(epoch_iter)
 
                 # Error visualisation
                 errors = model.get_current_errors()
-                stats = model.get_segmentation_stats()
-                error_logger.update({**errors, **stats}, split=split)
+                error_logger.update(errors, split='train')
 
-                # Visualise predictions
-                visuals = model.get_current_visuals()
-                visualizer.display_current_results(visuals, epoch=epoch, save_result=False)
+            # Validation and Testing Iterations
+            for loader, split in zip([valid_loader, test_loader], ['validation', 'test']):
+                for epoch_iter, (images, labels) in tqdm(enumerate(loader, 1), total=len(loader)):
 
-        # Update the plots
-        for split in ['train', 'validation', 'test']:
-            visualizer.plot_current_errors(epoch, error_logger.get_errors(split), split_name=split)
-            visualizer.print_current_errors(epoch, error_logger.get_errors(split), split_name=split)
-        error_logger.reset()
+                    # Make a forward pass with the model
+                    model.set_input(images, labels)
+                    model.validate()
 
-        # Save the model parameters
-        if epoch % train_opts.save_epoch_freq == 0:
-            model.save(epoch)
+                    # Error visualisation
+                    errors = model.get_current_errors()
+                    stats = model.get_segmentation_stats()
+                    error_logger.update({**errors, **stats}, split=split)
 
-        # Update the model learning rate
-        model.update_learning_rate()
+                    # Visualise predictions
+                    visuals = model.get_current_visuals()
+                    visualizer.display_current_results(visuals, epoch=epoch, save_result=False)
 
-    # Store the final model
-    model.save(epoch)
+            # Update the plots
+            for split in ['train', 'validation', 'test']:
+                visualizer.plot_current_errors(epoch, error_logger.get_errors(split), split_name=split)
+                visualizer.print_current_errors(epoch, error_logger.get_errors(split), split_name=split)
+
+            # Save the model parameters
+            if epoch % train_opts.save_epoch_freq == 0:
+                slack_logger.info('(Experiment %s) Saving model at epoch %04d, loss:%s',
+                                  json_opts.model.experiment_name, epoch, _get_loss_msg(error_logger))
+
+                model.save(epoch)
+
+            error_logger.reset()
+
+            # Update the model learning rate
+            model.update_learning_rate()
+
+        # Store the final model
+        slack_logger.info('(Experiment %s) Training finished! Saving model...',
+                          json_opts.model.experiment_name)
+        model.save(epoch)
+    except Exception:
+        slack_logger.critical('(Experiment %s) Oh No! Training failed!!', json_opts.model.experiment_name, exc_info=True)
+
+
+def _get_loss_msg(error_logger):
+    loss_msg = ''
+    for split in ['train', 'validation', 'test']:
+        loss_msg += '\n\t (split %s)' % split
+        for k, v in error_logger.get_errors(split).items():
+            if np.isscalar(v):
+                loss_msg += '%s: %.3f ' % (k, v)
+    return loss_msg
 
 
 def map_memory(epoch, json_opts):
