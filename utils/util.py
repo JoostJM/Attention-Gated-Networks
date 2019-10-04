@@ -13,9 +13,9 @@ from skimage.exposure import rescale_intensity
 # |imtype|: the desired type of the converted numpy array
 def tensor2im(image_tensor, imgtype='img', datatype=np.uint8):
     image_numpy = image_tensor[0].cpu().float().numpy()
-    if image_numpy.ndim == 4:# image_numpy (C x W x H x S)
-        mid_slice = image_numpy.shape[-1]//2
-        image_numpy = image_numpy[:,:,:,mid_slice]
+    if image_numpy.ndim == 4:  # image_numpy (C x D X W X H)
+        mid_slice = image_numpy.shape[1]//2
+        image_numpy = image_numpy[:, mid_slice, :, :]
     if image_numpy.shape[0] == 1:
         image_numpy = np.tile(image_numpy, (3, 1, 1))
     image_numpy = np.transpose(image_numpy, (1, 2, 0))

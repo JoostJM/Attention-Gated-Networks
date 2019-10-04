@@ -110,7 +110,6 @@ class Visualiser():
         else:
             self.vis.close(self.error_plots[key_s])
 
-
         table = pd.DataFrame(np.array(y['data']).transpose(),
                              index=kwargs['labels'], columns=y['colnames'])
         table_html = table.round(2).to_html(col_space=200, bold_rows=True, border=12)
@@ -119,7 +118,6 @@ class Visualiser():
                                                 opts=dict(title=self.name+split_name,
                                                           width=350, height=350,
                                                           win=self.error_wins[key_s]))
-
 
     def plot_heatmap(self, x, y, key, split_name, **kwargs):
         key_s = key+'_'+split_name
@@ -150,6 +148,7 @@ class Visualiser():
             ))
         else:
             self.vis.line(X=np.array([x]), Y=np.array([y]), win=self.error_plots[key], name=split_name, update='append')
+
     # errors: dictionary of error labels and values
     def plot_current_errors(self, epoch, errors, split_name, counter_ratio=0.0, **kwargs):
         if self.display_id > 0:
