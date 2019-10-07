@@ -1,3 +1,4 @@
+import SimpleITK as sitk
 import torchsample.transforms as ts
 from pprint import pprint
 
@@ -29,7 +30,7 @@ class Transformations:
             'test_sax': self.test_3d_sax_transform,
             'acdc_sax': self.cmr_3d_sax_transform,
             'us':       self.ultrasound_transform,
-            'rectum':   self.cmr_3d_sax_transform
+            'rectum':   self.cmr_3d_sitk
         }[self.name]()
 
     def print(self):
@@ -84,21 +85,43 @@ class Transformations:
                                       ts.RandomFlip(h=True, v=True, p=self.random_flip_prob),
                                       ts.RandomAffine3D(rotation_range=self.rotate_val, translation_range=self.shift_val,
                                                         zoom_range=self.scale_val, interp=('trilinear', 'nearest')),
-                                      #ts.NormalizeMedicPercentile(norm_flag=(True, False)),
+                                      # ts.NormalizeMedicPercentile(norm_flag=(True, False)),
                                       ts.NormalizeMedic(norm_flag=(True, False)),
                                       ts.RandomCrop(size=self.patch_size, channels_first=True),
                                       ts.TypeCast(['float', 'long'])
-                                ])
+                                      ])
 
         valid_transform = ts.Compose([ts.PadNumpy(size=self.scale_size, channels_first=False),
                                       ts.ToTensor(),
                                       ts.ChannelsFirst(),
                                       ts.TypeCast(['float', 'float']),
-                                      #ts.NormalizeMedicPercentile(norm_flag=(True, False)),
+                                      # ts.NormalizeMedicPercentile(norm_flag=(True, False)),
                                       ts.NormalizeMedic(norm_flag=(True, False)),
                                       ts.SpecialCrop(size=self.patch_size, crop_type=0, channels_first=True),
                                       ts.TypeCast(['float', 'long'])
-                                ])
+                                      ])
+
+        return {'train': train_transform, 'valid': valid_transform}
+
+    def cmr_3d_sitk(self):
+        train_transform = ts.Compose([ts.PadSimpleITK(size=self.scale_size),
+                                      ts.RandomFlipSimpleITK(h=True, v=True, p=self.random_flip_prob),
+                                      ts.RandomAffineSimpleITK(rotation_range=self.rotate_val,
+                                                               translation_range=self.shift_val,
+                                                               zoom_range=self.scale_val,
+                                                               interp=(sitk.sitkLinear, sitk.sitkNearestNeighbor)),
+                                      ts.RandomCropSimpleITK(size=self.patch_size),
+                                      ts.SimpleITKtoTensor(),
+                                      ts.ChannelsFirst(),
+                                      ts.TypeCast(['float', 'long'])
+                                      ])
+
+        valid_transform = ts.Compose([ts.PadSimpleITK(size=self.scale_size),
+                                      ts.SpecialCropSimpleITK(size=self.patch_size, crop_type=0),
+                                      ts.SimpleITKtoTensor(),
+                                      ts.ChannelsFirst(),
+                                      ts.TypeCast(['float', 'long'])
+                                      ])
 
         return {'train': train_transform, 'valid': valid_transform}
 

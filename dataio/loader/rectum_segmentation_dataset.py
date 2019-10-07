@@ -4,7 +4,9 @@ import datetime
 
 from os import listdir
 from os.path import join
-from .utils import load_nifti_img, check_exceptions, is_image_file, load_nrrd_img
+from .utils import is_image_file
+
+import SimpleITK as sitk
 
 
 class RectumSegmentationDataset(data.Dataset):
@@ -27,10 +29,9 @@ class RectumSegmentationDataset(data.Dataset):
         self.preload_data = preload_data
         if self.preload_data:
             print('Preloading the {0} dataset ...'.format(split))
-            self.raw_images = [load_nrrd_img(ii)[0] for ii in self.image_filenames]
-            self.raw_labels = [load_nrrd_img(ii, dtype=np.uint8)[0][:, :, :, np.newaxis] for ii in self.target_filenames]
+            self.raw_images = [sitk.ReadImage(ii) for ii in self.image_filenames]
+            self.raw_labels = [sitk.ReadImage(ii) for ii in self.target_filenames]
             print('Loading is done\n')
-
 
     def __getitem__(self, index):
         # update the seed to avoid workers sample the same augmentation parameters
@@ -38,15 +39,13 @@ class RectumSegmentationDataset(data.Dataset):
 
         # load the nifti images
         if not self.preload_data:
-            input, _ = load_nrrd_img(self.image_filenames[index])
-            target, _ = load_nrrd_img(self.target_filenames[index], dtype=np.uint8)
-            target = target[:, :, :, np.newaxis]
+            input = sitk.ReadImage(self.image_filenames[index])
+            target = sitk.ReadImage(self.target_filenames[index])
         else:
-            input = np.copy(self.raw_images[index])
-            target = np.copy(self.raw_labels[index])
+            input = self.raw_images[index]
+            target = self.raw_labels[index]
 
         # handle exceptions
-        check_exceptions(input, target)
         if self.transform:
             input, target = self.transform(input, target)
 
