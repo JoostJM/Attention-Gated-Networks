@@ -16,8 +16,7 @@ class unet_CT_single_att_dsv_3D(nn.Module):
         self.is_batchnorm = is_batchnorm
         self.feature_scale = feature_scale
 
-        self._split_gpus = False
-        self._gpu_ids = None
+        self._block_gpu_ids = {}
 
         filters = [64, 128, 256, 512, 1024]
         filters = [int(x / self.feature_scale) for x in filters]
@@ -73,14 +72,20 @@ class unet_CT_single_att_dsv_3D(nn.Module):
         conv1 = self.conv1(inputs)
         maxpool1 = self.maxpool1(conv1)
 
+        if 1 in self._block_gpu_ids:  # Move from 1 to 2
+            maxpool1.cuda(self._block_gpu_ids[1][1])
+
         conv2 = self.conv2(maxpool1)
         maxpool2 = self.maxpool2(conv2)
 
-        if self._split_gpus:
-            maxpool2 = maxpool2.cuda(self._gpu_ids[1])
+        if 2 in self._block_gpu_ids:  # Move from 2 to 3
+            maxpool2.cuda(self._block_gpu_ids[2][1])
 
         conv3 = self.conv3(maxpool2)
         maxpool3 = self.maxpool3(conv3)
+
+        if 3 in self._block_gpu_ids:  # Move from 3 to 4
+            maxpool3 = maxpool3.cuda(self._block_gpu_ids[3][1])
 
         conv4 = self.conv4(maxpool3)
         maxpool4 = self.maxpool4(conv4)
@@ -93,66 +98,129 @@ class unet_CT_single_att_dsv_3D(nn.Module):
         # Upscaling Part (Decoder)
         g_conv4, att4 = self.attentionblock4(conv4, gating)
         up4 = self.up_concat4(g_conv4, center)
+
+        if 3 in self._block_gpu_ids:  # Move from 4 to 3
+            up4 = up4.cuda(self._block_gpu_ids[3][0])
+
         g_conv3, att3 = self.attentionblock3(conv3, up4)
         up3 = self.up_concat3(g_conv3, up4)
 
-        if self._split_gpus:
-            up3 = up3.cuda(self._gpu_ids[0])
+        if 2 in self._block_gpu_ids:  # Move from 3 to 2
+            up4 = up4.cuda(self._block_gpu_ids[2][0])
 
         g_conv2, att2 = self.attentionblock2(conv2, up3)
         up2 = self.up_concat2(g_conv2, up3)
+
+        if 1 in self._block_gpu_ids:  # Move from 2 to 1
+            up4 = up4.cuda(self._block_gpu_ids[1][0])
+
         up1 = self.up_concat1(conv1, up2)
 
         # Deep Supervision
         dsv4 = self.dsv4(up4)
-
-        if self._split_gpus:
-            dsv4 = dsv4.cuda(self._gpu_ids[0])
-
         dsv3 = self.dsv3(up3)
         dsv2 = self.dsv2(up2)
         dsv1 = self.dsv1(up1)
+
+        if 4 in self._block_gpu_ids:  # Move to block 5 (final block)
+            dsv4 = dsv4.cuda(self._block_gpu_ids[4])
+            dsv3 = dsv3.cuda(self._block_gpu_ids[4])
+            dsv2 = dsv2.cuda(self._block_gpu_ids[4])
+            dsv1 = dsv1.cuda(self._block_gpu_ids[4])
+
         final = self.final(torch.cat([dsv1,dsv2,dsv3,dsv4], dim=1))
 
         return final
 
     def cuda(self, device=None):
         net = super(unet_CT_single_att_dsv_3D, self).cuda(device)
-        self._split_gpus = False
-        self._gpu_ids = None
+        self._block_gpu_ids = {}
         return net
 
     def split_multi_gpu(self, devices):
-        assert len(devices) == 2, 'Can only split model across 2 devices'
-        self._split_gpus = True
-        self._gpu_ids = devices
+        if len(devices) == 1:
+            self.cuda(devices[0])
+            return
+        elif len(devices) == 2:  # Split Block #2 and #3
+            block_devices = {
+                1: devices[0],
+                2: devices[0],
+                3: devices[1],
+                4: devices[1],
+                5: devices[1]
+            }
+            self._block_gpu_ids = {
+                2: (devices[0], devices[1]),  # Block #2 <-> #3
+                5: devices[1]  # Move to Block #4 (final block)
+            }
+        elif len(devices) == 3:  # Split Block #1 and #2
+            block_devices = {
+                1: devices[0],
+                2: devices[1],
+                3: devices[2],
+                4: devices[2],
+                5: devices[2]
+            }
+            self._block_gpu_ids = {
+                1: (devices[0], devices[1]),  # Block #1 <-> #2
+                2: (devices[1], devices[2]),  # Block #2 <-> #3
+                4: devices[2]  # Move to Block #4 (final block)
+            }
+        elif len(devices) == 4:
+            block_devices = {
+                1: devices[0],
+                2: devices[1],
+                3: devices[2],
+                4: devices[3],
+                5: devices[3]
+            }
+            self._block_gpu_ids = {
+                1: (devices[0], devices[1]),  # Block #1 <-> #2
+                2: (devices[1], devices[2]),  # Block #2 <-> #3
+                3: (devices[2], devices[3]),  # Block #3 <-> #4
+                4: devices[3]  # Move to Block #4 (final block)
+            }
+        else:
+            raise ValueError('Can only split model across a 1-4 devices')
 
-        self.conv1.cuda(devices[0])
-        self.maxpool1.cuda(devices[0])
-        self.conv2.cuda(devices[0])
-        self.maxpool2.cuda(devices[0])
+        # Block #1
+        self.conv1.cuda(block_devices[1])
+        self.maxpool1.cuda(block_devices[1])
 
-        self.conv3.cuda(devices[1])
-        self.maxpool3.cuda(devices[1])
-        self.conv4.cuda(devices[1])
-        self.maxpool4.cuda(devices[1])
-        self.center.cuda(devices[1])
-        self.gating.cuda(devices[1])
+        # Block #2
+        self.conv2.cuda(block_devices[2])
+        self.maxpool2.cuda(block_devices[2])
 
-        self.attentionblock4.cuda(devices[1])
-        self.up_concat4.cuda(devices[1])
-        self.attentionblock3.cuda(devices[1])
-        self.up_concat3.cuda(devices[1])
-        self.dsv4.cuda(devices[1])
+        # Block #3
+        self.conv3.cuda(block_devices[3])
+        self.maxpool3.cuda(block_devices[3])
 
-        self.attentionblock2.cuda(devices[0])
-        self.up_concat2.cuda(devices[0])
-        self.up_concat1.cuda(devices[0])
+        # Block #4
+        self.conv4.cuda(block_devices[4])
+        self.maxpool4.cuda(block_devices[4])
+        self.center.cuda(block_devices[4])
+        self.gating.cuda(block_devices[4])
 
-        self.dsv3.cuda(devices[0])
-        self.dsv2.cuda(devices[0])
-        self.dsv1.cuda(devices[0])
-        self.final.cuda(devices[0])
+        self.attentionblock4.cuda(block_devices[4])
+        self.up_concat4.cuda(block_devices[4])
+
+        # Block #3
+        self.attentionblock3.cuda(block_devices[3])
+        self.up_concat3.cuda(block_devices[3])
+        self.dsv4.cuda(block_devices[3])
+
+        # Block #2
+        self.attentionblock2.cuda(block_devices[2])
+        self.up_concat2.cuda(block_devices[2])
+        self.dsv3.cuda(block_devices[2])
+
+        # Block #1
+        self.up_concat1.cuda(block_devices[1])
+        self.dsv2.cuda(block_devices[1])
+        self.dsv1.cuda(block_devices[1])
+
+        # Block #5
+        self.final.cuda(block_devices[5])
 
     @staticmethod
     def apply_argmax_softmax(pred):
