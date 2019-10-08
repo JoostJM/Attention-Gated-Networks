@@ -1,14 +1,19 @@
+import json
+import logging
+import os
+
 import numpy as np
+import torch
 from torch.utils.data import DataLoader, sampler
 from tqdm import tqdm
 
 
-from dataio.loader import get_dataset, get_dataset_path
-from dataio.transformation import get_dataset_transformation
+from dataio.loader import get_dataset
 from utils.util import json_file_to_pyobj
 from utils.visualiser import Visualiser
 from utils.error_logger import ErrorLogger
 from models.networks_other import adjust_learning_rate
+from utils import _configure_logging
 
 from models import get_model
 
@@ -74,73 +79,93 @@ def check_warm_start(epoch, model, train_opts):
 
 
 def train(arguments):
-
     # Parse input arguments
     json_filename = arguments.config
     network_debug = arguments.debug
 
     # Load options
-    json_opts = json_file_to_pyobj(json_filename)
-    train_opts = json_opts.training
+    with open(json_filename) as j_fs:
+        json_opts = json.load(j_fs)
 
-    # Architecture type
-    arch_type = train_opts.arch_type
+    arch_type = json_opts["arch_type"]
+    experiment = json_opts['experiment_name']
+    data_opts = json_opts['data']
+    train_opts = json_opts['training']
+    model_opts = json_opts['model']
 
-    # Setup Dataset and Augmentation
-    ds_class = get_dataset(arch_type)
-    ds_path  = get_dataset_path(arch_type, json_opts.data_path)
-    ds_transform = get_dataset_transformation(arch_type, opts=json_opts.augmentation)
+    batchSize = train_opts.get('batchSize', 1)
+    checkpoints_dir = model_opts['checkpoints_dir']
+
+    # Set up Logging
+    if not os.path.isdir(checkpoints_dir):
+        os.makedirs(checkpoints_dir)
+    log_file = os.path.join(checkpoints_dir, experiment + '.log')
+    _configure_logging(logging.INFO, arguments.slack, log_file)
+    logger = logging.getLogger()
+    slack_logger = logging.getLogger('slack')
+
+    # Try to enable cudnn benchmark if cuda will be used
+    try:
+        if model_opts.get('gpu_ids', None) is not None and len(model_opts['gpu_ids']) > 0:
+            torch.backends.cudnn.enabled = True
+            torch.backends.cudnn.benchmark = True
+            logger.info('CuDNN benchmark enabled')
+    except Exception:
+        logger.warning('Failed to enable CuDNN benchmark', exc_info=True)
 
     # Setup the NN Model
-    model = get_model(json_opts.model)
+    model = get_model(experiment, **model_opts)
     if network_debug:
-        print('# of pars: ', model.get_number_parameters())
-        print('fp time: {0:.3f} sec\tbp time: {1:.3f} sec per sample'.format(*model.get_fp_bp_time()))
+        augmentation_opts = getattr(json_opts.augmentation, arch_type)
+        input_size = (json_opts['train']['batchSize'], json_opts.model.input_nc, *augmentation_opts.patch_size)
+        logger.info('# of pars: %s', model.get_number_parameters())
+        logger.info(
+            'fp time: {0:.3f} sec\tbp time: {1:.3f} sec per sample'.format(*model.get_fp_bp_time(size=input_size)))
+        logger.info('Max_memory used: {0:.3f}'.format(torch.cuda.max_memory_allocated()))
         exit()
 
-    # Setup Data Loader
-    num_workers = train_opts.num_workers if hasattr(train_opts, 'num_workers') else 16
-    train_dataset = ds_class(ds_path, split='train', transform=ds_transform['train'], preload_data=train_opts.preloadData)
-    valid_dataset = ds_class(ds_path, split='val',   transform=ds_transform['valid'], preload_data=train_opts.preloadData)
-    test_dataset  = ds_class(ds_path, split='test',  transform=ds_transform['valid'], preload_data=train_opts.preloadData)
+    # Setup Data and Augmentation
+    num_workers = train_opts.get('num_workers', 16)
+    datasets = get_dataset(['train', 'validation', 'test'], **data_opts)
 
     # create sampler
-    if train_opts.sampler == 'stratified':
+    if train_opts['sampler'] == 'stratified':
         print('stratified sampler')
-        train_sampler = StratifiedSampler(train_dataset.labels, train_opts.batchSize)
+        train_sampler = StratifiedSampler(datasets['train'].labels, batchSize)
         batch_size = 52
-    elif train_opts.sampler == 'weighted2':
-        print('weighted sampler with background weight={}x'.format(train_opts.bgd_weight_multiplier))
+    elif train_opts['sampler'] == 'weighted2':
+        print('weighted sampler with background weight={}x'.format(train_opts['bgd_weight_multiplier']))
         # modify and increase background weight
-        weight = train_dataset.weight
+        weight = datasets['train'].weight
         bgd_weight = np.min(weight)
-        weight[abs(weight - bgd_weight) < 1e-8] = bgd_weight * train_opts.bgd_weight_multiplier
-        train_sampler = sampler.WeightedRandomSampler(weight, len(train_dataset.weight))
-        batch_size = train_opts.batchSize
+        weight[abs(weight - bgd_weight) < 1e-8] = bgd_weight * train_opts['bgd_weight_multiplier']
+        train_sampler = sampler.WeightedRandomSampler(weight, len(datasets['train'].weight))
+        batch_size = batchSize
     else:
         print('weighted sampler')
-        train_sampler = sampler.WeightedRandomSampler(train_dataset.weight, len(train_dataset.weight))
-        batch_size = train_opts.batchSize
+        train_sampler = sampler.WeightedRandomSampler(datasets['train'].weight, len(datasets['train'].weight))
+        batch_size = batchSize
 
-    # loader
-    train_loader = DataLoader(dataset=train_dataset, num_workers=num_workers,
+    train_loader = DataLoader(dataset=datasets['train'], num_workers=num_workers,
                               batch_size=batch_size, sampler=train_sampler)
-    valid_loader = DataLoader(dataset=valid_dataset, num_workers=num_workers, batch_size=train_opts.batchSize, shuffle=True)
-    test_loader  = DataLoader(dataset=test_dataset,  num_workers=num_workers, batch_size=train_opts.batchSize, shuffle=True)
+    valid_loader = DataLoader(dataset=datasets['validation'], num_workers=num_workers,
+                              batch_size=batchSize, shuffle=True)
+    test_loader  = DataLoader(dataset=datasets['test'],  num_workers=num_workers,
+                              batch_size=batchSize, shuffle=True)
 
     # Visualisation Parameters
-    visualizer = Visualiser(json_opts.visualisation, save_dir=model.save_dir)
+    visualizer = Visualiser(json_opts['visualisation'], save_dir=model.save_dir)
     error_logger = ErrorLogger()
 
     # Training Function
-    track_labels = np.arange(len(train_dataset.label_names))
+    track_labels = np.arange(len(datasets['train'].label_names))
+    model.initialize_training(**train_opts)
     model.set_labels(track_labels)
-    model.set_scheduler(train_opts)
     
     if hasattr(model, 'update_state'):
         model.update_state(0)
 
-    for epoch in range(model.which_epoch, train_opts.n_epochs):
+    for epoch in range(model.which_epoch, train_opts['n_epochs']):
         print('(epoch: %d, total # iters: %d)' % (epoch, len(train_loader)))
 
         # # # --- Start ---
@@ -156,11 +181,11 @@ def train(arguments):
             model.set_input(images, labels)
             model.optimize_parameters(epoch_iter)
 
-            if epoch == (train_opts.n_epochs-1):
+            if epoch == (train_opts['n_epochs']-1):
                 import time
                 time.sleep(36000)
 
-            if train_opts.max_it == epoch_iter:
+            if train_opts['max_it'] == epoch_iter:
                 break
 
             # # # --- visualise distribution ---
@@ -179,8 +204,6 @@ def train(arguments):
             error_logger.update(errors, split='train')
 
         # Validation and Testing Iterations
-        pr_lbls = []
-        gt_lbls = []
         for loader, split in zip([valid_loader, test_loader], ['validation', 'test']):
             model.reset_results()
 
@@ -194,7 +217,7 @@ def train(arguments):
                 visuals = model.get_current_visuals()
                 visualizer.display_current_results(visuals, epoch=epoch, save_result=False)
 
-                if train_opts.max_it == epoch_iter:
+                if train_opts['max_it'] == epoch_iter:
                     break
 
             # Error visualisation
@@ -211,13 +234,13 @@ def train(arguments):
             # exclude bckground
             #track_labels = np.delete(track_labels, 3)
             #show_labels = train_dataset.label_names[:3] + train_dataset.label_names[4:]
-            show_labels = train_dataset.label_names
+            show_labels = datasets['train'].label_names
             visualizer.plot_current_errors(epoch, error_logger.get_errors(split), split_name=split, labels=show_labels)
             visualizer.print_current_errors(epoch, error_logger.get_errors(split), split_name=split)
         error_logger.reset()
 
         # Save the model parameters
-        if epoch % train_opts.save_epoch_freq == 0:
+        if epoch % train_opts['save_epoch_freq'] == 0:
             model.save(epoch)
 
         if hasattr(model, 'update_state'):
