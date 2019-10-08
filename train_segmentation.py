@@ -69,10 +69,8 @@ def train(arguments):
     # Setup Data Loader
     train_dataset = ds_class(ds_path, split='train',      transform=ds_transform['train'], preload_data=train_opts.preloadData)
     valid_dataset = ds_class(ds_path, split='validation', transform=ds_transform['valid'], preload_data=train_opts.preloadData)
-    test_dataset  = ds_class(ds_path, split='test',       transform=ds_transform['valid'], preload_data=train_opts.preloadData)
     train_loader = DataLoader(dataset=train_dataset, num_workers=4, batch_size=train_opts.batchSize, shuffle=True)
     valid_loader = DataLoader(dataset=valid_dataset, num_workers=4, batch_size=train_opts.batchSize, shuffle=False)
-    test_loader  = DataLoader(dataset=test_dataset,  num_workers=4, batch_size=train_opts.batchSize, shuffle=False)
 
     # Visualisation Parameters
     visualizer = Visualiser(json_opts.visualisation, save_dir=model.save_dir)
@@ -100,27 +98,26 @@ def train(arguments):
                 del images
                 del labels
 
-            # Validation and Testing Iterations
-            for loader, split in zip([valid_loader, test_loader], ['validation', 'test']):
-                for epoch_iter, (images, labels) in tqdm(enumerate(loader, 1), total=len(loader)):
+            # Validation Iterations
+            for epoch_iter, (images, labels) in tqdm(enumerate(valid_loader, 1), total=len(valid_loader)):
 
-                    # Make a forward pass with the model
-                    model.set_input(images, labels)
-                    model.validate()
+                # Make a forward pass with the model
+                model.set_input(images, labels)
+                model.validate()
 
-                    # Error visualisation
-                    errors = model.get_current_errors()
-                    stats = model.get_segmentation_stats()
-                    error_logger.update({**errors, **stats}, split=split)
+                # Error visualisation
+                errors = model.get_current_errors()
+                stats = model.get_segmentation_stats()
+                error_logger.update({**errors, **stats}, split='validation')
 
-                    # Visualise predictions
-                    visuals = model.get_current_visuals()
-                    visualizer.display_current_results(visuals, epoch=epoch, save_result=False)
-                    del images
-                    del labels
+                # Visualise predictions
+                visuals = model.get_current_visuals()
+                visualizer.display_current_results(visuals, epoch=epoch, save_result=False)
+                del images
+                del labels
 
             # Update the plots
-            for split in ['train', 'validation', 'test']:
+            for split in error_logger.variables.keys():
                 visualizer.plot_current_errors(epoch, error_logger.get_errors(split), split_name=split)
                 visualizer.print_current_errors(epoch, error_logger.get_errors(split), split_name=split)
 
@@ -153,7 +150,7 @@ def train(arguments):
 
 def _get_loss_msg(error_logger):
     loss_msg = ''
-    for split in ['train', 'validation', 'test']:
+    for split in error_logger.variables.keys():
         loss_msg += '\n\t (split %s)' % split
         for k, v in error_logger.get_errors(split).items():
             if np.isscalar(v):

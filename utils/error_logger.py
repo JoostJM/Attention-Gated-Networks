@@ -68,12 +68,12 @@ class StatMeter(object):
 class ErrorLogger(object):
 
     def __init__(self):
-        self.variables = {'train': dict(),
-                          'validation': dict(),
-                          'test': dict()
-                          }
+        self.variables = {}
 
     def update(self, input_dict, split):
+
+        if split not in self.variables:
+            self.variables[split] = dict()
 
         for key, value in input_dict.items():
             if key not in self.variables[split]:
@@ -84,7 +84,6 @@ class ErrorLogger(object):
 
             self.variables[split][key].update(value)
 
-
     def get_errors(self, split):
         output = dict()
         for key, meter_obj in self.variables[split].items():
@@ -92,12 +91,7 @@ class ErrorLogger(object):
         return output
 
     def reset(self):
-        for key, meter_obj in self.variables['train'].items():
-            meter_obj.reset()
-        for key, meter_obj in self.variables['validation'].items():
-            meter_obj.reset()
-        for key, meter_obj in self.variables['test'].items():
-            meter_obj.reset()
+        self.variables = {}
 
 
 class StatLogger(object):
