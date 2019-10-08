@@ -16,7 +16,7 @@ class unet_CT_single_att_dsv_3D(nn.Module):
         self.is_batchnorm = is_batchnorm
         self.feature_scale = feature_scale
 
-        self._block_gpu_ids = {}
+        self.block_gpu_ids = {}
 
         filters = [64, 128, 256, 512, 1024]
         filters = [int(x / self.feature_scale) for x in filters]
@@ -72,20 +72,20 @@ class unet_CT_single_att_dsv_3D(nn.Module):
         conv1 = self.conv1(inputs)
         maxpool1 = self.maxpool1(conv1)
 
-        if 1 in self._block_gpu_ids:  # Move from 1 to 2
-            maxpool1.cuda(self._block_gpu_ids[1][1])
+        if 1 in self.block_gpu_ids:  # Move from 1 to 2
+            maxpool1.cuda(self.block_gpu_ids[1][1])
 
         conv2 = self.conv2(maxpool1)
         maxpool2 = self.maxpool2(conv2)
 
-        if 2 in self._block_gpu_ids:  # Move from 2 to 3
-            maxpool2.cuda(self._block_gpu_ids[2][1])
+        if 2 in self.block_gpu_ids:  # Move from 2 to 3
+            maxpool2.cuda(self.block_gpu_ids[2][1])
 
         conv3 = self.conv3(maxpool2)
         maxpool3 = self.maxpool3(conv3)
 
-        if 3 in self._block_gpu_ids:  # Move from 3 to 4
-            maxpool3 = maxpool3.cuda(self._block_gpu_ids[3][1])
+        if 3 in self.block_gpu_ids:  # Move from 3 to 4
+            maxpool3 = maxpool3.cuda(self.block_gpu_ids[3][1])
 
         conv4 = self.conv4(maxpool3)
         maxpool4 = self.maxpool4(conv4)
@@ -99,20 +99,20 @@ class unet_CT_single_att_dsv_3D(nn.Module):
         g_conv4, att4 = self.attentionblock4(conv4, gating)
         up4 = self.up_concat4(g_conv4, center)
 
-        if 3 in self._block_gpu_ids:  # Move from 4 to 3
-            up4 = up4.cuda(self._block_gpu_ids[3][0])
+        if 3 in self.block_gpu_ids:  # Move from 4 to 3
+            up4 = up4.cuda(self.block_gpu_ids[3][0])
 
         g_conv3, att3 = self.attentionblock3(conv3, up4)
         up3 = self.up_concat3(g_conv3, up4)
 
-        if 2 in self._block_gpu_ids:  # Move from 3 to 2
-            up4 = up4.cuda(self._block_gpu_ids[2][0])
+        if 2 in self.block_gpu_ids:  # Move from 3 to 2
+            up4 = up4.cuda(self.block_gpu_ids[2][0])
 
         g_conv2, att2 = self.attentionblock2(conv2, up3)
         up2 = self.up_concat2(g_conv2, up3)
 
-        if 1 in self._block_gpu_ids:  # Move from 2 to 1
-            up4 = up4.cuda(self._block_gpu_ids[1][0])
+        if 1 in self.block_gpu_ids:  # Move from 2 to 1
+            up4 = up4.cuda(self.block_gpu_ids[1][0])
 
         up1 = self.up_concat1(conv1, up2)
 
@@ -122,11 +122,11 @@ class unet_CT_single_att_dsv_3D(nn.Module):
         dsv2 = self.dsv2(up2)
         dsv1 = self.dsv1(up1)
 
-        if 4 in self._block_gpu_ids:  # Move to block 5 (final block)
-            dsv4 = dsv4.cuda(self._block_gpu_ids[4])
-            dsv3 = dsv3.cuda(self._block_gpu_ids[4])
-            dsv2 = dsv2.cuda(self._block_gpu_ids[4])
-            dsv1 = dsv1.cuda(self._block_gpu_ids[4])
+        if 4 in self.block_gpu_ids:  # Move to block 5 (final block)
+            dsv4 = dsv4.cuda(self.block_gpu_ids[4])
+            dsv3 = dsv3.cuda(self.block_gpu_ids[4])
+            dsv2 = dsv2.cuda(self.block_gpu_ids[4])
+            dsv1 = dsv1.cuda(self.block_gpu_ids[4])
 
         final = self.final(torch.cat([dsv1,dsv2,dsv3,dsv4], dim=1))
 
@@ -134,10 +134,10 @@ class unet_CT_single_att_dsv_3D(nn.Module):
 
     def cuda(self, device=None):
         net = super(unet_CT_single_att_dsv_3D, self).cuda(device)
-        self._block_gpu_ids = {}
+        self.block_gpu_ids = {}
         return net
 
-    def split_multi_gpu(self, devices):
+    def split_net(self, devices):
         if len(devices) == 1:
             self.cuda(devices[0])
             return
@@ -149,9 +149,9 @@ class unet_CT_single_att_dsv_3D(nn.Module):
                 4: devices[1],
                 5: devices[1]
             }
-            self._block_gpu_ids = {
+            self.block_gpu_ids = {
                 2: (devices[0], devices[1]),  # Block #2 <-> #3
-                5: devices[1]  # Move to Block #4 (final block)
+                4: devices[1]  # Move to Block #4 (final block)
             }
         elif len(devices) == 3:  # Split Block #1 and #2
             block_devices = {
@@ -161,7 +161,7 @@ class unet_CT_single_att_dsv_3D(nn.Module):
                 4: devices[2],
                 5: devices[2]
             }
-            self._block_gpu_ids = {
+            self.block_gpu_ids = {
                 1: (devices[0], devices[1]),  # Block #1 <-> #2
                 2: (devices[1], devices[2]),  # Block #2 <-> #3
                 4: devices[2]  # Move to Block #4 (final block)
@@ -174,7 +174,7 @@ class unet_CT_single_att_dsv_3D(nn.Module):
                 4: devices[3],
                 5: devices[3]
             }
-            self._block_gpu_ids = {
+            self.block_gpu_ids = {
                 1: (devices[0], devices[1]),  # Block #1 <-> #2
                 2: (devices[1], devices[2]),  # Block #2 <-> #3
                 3: (devices[2], devices[3]),  # Block #3 <-> #4
