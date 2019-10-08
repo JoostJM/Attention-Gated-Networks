@@ -75,7 +75,11 @@ def eval(model, opts):
   for iteration, (image, label) in tqdm(enumerate(test_loader, 1), total=len(test_loader)):
     im_name = os.path.splitext(os.path.basename(test_dataset.image_filenames[iteration-1]))[0]
 
-    with torch.no_grad():
+    if hasattr(torch, "no_grad"):
+      with torch.no_grad():
+        model.set_input(image, label)
+        model.test()
+    else:
       model.set_input(image, label)
       model.test()
 
