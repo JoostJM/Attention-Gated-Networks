@@ -223,14 +223,14 @@ def train(arguments):
                 visualizer.plot_current_errors(epoch, error_logger.get_errors(split), split_name=split)
                 visualizer.print_current_errors(epoch, error_logger.get_errors(split), split_name=split)
 
-              error_logger.reset()
-
               # Save the model parameters
               if epoch % train_opts.save_epoch_freq == 0:
                 slack_logger.info('(Experiment %s) Saving model at epoch %04d, loss:%s',
                                   json_opts.model.experiment_name, epoch, _get_loss_msg(error_logger))
 
                 model.save(epoch)
+
+              error_logger.reset()
 
             slack_logger.info('SWA Training finished!')
             if epoch % train_opts.save_epoch_freq != 0:  # Only save when not done so already
