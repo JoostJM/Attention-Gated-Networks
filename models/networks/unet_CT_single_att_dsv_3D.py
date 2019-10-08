@@ -16,6 +16,9 @@ class unet_CT_single_att_dsv_3D(nn.Module):
         self.is_batchnorm = is_batchnorm
         self.feature_scale = feature_scale
 
+        self.split_gpus = False
+        self._gpu_ids = None
+
         filters = [64, 128, 256, 512, 1024]
         filters = [int(x / self.feature_scale) for x in filters]
 
@@ -83,6 +86,14 @@ class unet_CT_single_att_dsv_3D(nn.Module):
         center = self.center(maxpool4)
         gating = self.gating(center)
 
+        if self.split_gpus:
+            conv1 = conv1.cuda(self._gpu_ids[1])
+            conv2 = conv2.cuda(self._gpu_ids[1])
+            conv3 = conv3.cuda(self._gpu_ids[1])
+            conv4 = conv4.cuda(self._gpu_ids[1])
+            gating = gating.cuda(self._gpu_ids[1])
+            center = center.cuda(self._gpu_ids[1])
+
         # Attention Mechanism
         # Upscaling Part (Decoder)
         g_conv4, att4 = self.attentionblock4(conv4, gating)
@@ -102,6 +113,43 @@ class unet_CT_single_att_dsv_3D(nn.Module):
 
         return final
 
+    def cuda(self, device=None):
+        net = super(unet_CT_single_att_dsv_3D, self).cuda(device)
+        self.split_gpus = False
+        self._gpu_ids = None
+        return net
+
+    def split_net(self, devices):
+        assert len(devices) == 2, 'Can only split model across 2 devices'
+        self.split_gpus = True
+        self._gpu_ids = devices
+
+        self.conv1.cuda(devices[0])
+        self.maxpool1.cuda(devices[0])
+        self.conv2.cuda(devices[0])
+        self.maxpool2.cuda(devices[0])
+
+        self.conv3.cuda(devices[0])
+        self.maxpool3.cuda(devices[0])
+        self.conv4.cuda(devices[0])
+        self.maxpool4.cuda(devices[0])
+        self.center.cuda(devices[0])
+        self.gating.cuda(devices[0])
+
+        self.attentionblock4.cuda(devices[1])
+        self.up_concat4.cuda(devices[1])
+        self.attentionblock3.cuda(devices[1])
+        self.up_concat3.cuda(devices[1])
+        self.dsv4.cuda(devices[1])
+
+        self.attentionblock2.cuda(devices[1])
+        self.up_concat2.cuda(devices[1])
+        self.up_concat1.cuda(devices[1])
+
+        self.dsv3.cuda(devices[1])
+        self.dsv2.cuda(devices[1])
+        self.dsv1.cuda(devices[1])
+        self.final.cuda(devices[1])
 
     @staticmethod
     def apply_argmax_softmax(pred):
