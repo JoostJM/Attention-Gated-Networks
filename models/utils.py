@@ -36,6 +36,8 @@ def get_criterion(opts):
             criterion = CrossEntropyLoss()
     elif opts.criterion == 'dice_loss':
         criterion = SoftDiceLoss(opts.output_nc)
+    elif opts.criterion == 'weighted_dice_loss':
+        criterion = WeightedSoftDiceLoss(opts.output_nc, weights=opts.class_weights)
     elif opts.criterion == 'dice_loss_pancreas_only':
         criterion = CustomSoftDiceLoss(opts.output_nc, class_ids=[0, 2])
 

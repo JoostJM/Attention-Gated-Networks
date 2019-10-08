@@ -49,6 +49,8 @@ class FeedForwardSegmentation(BaseModel):
         # training objective
         if self.isTrain:
             self.criterion = get_criterion(opts)
+            if self.use_cuda:
+                self.criterion = self.criterion.cuda(self.gpu_ids[0])
             # initialize optimizers
             self.schedulers = []
             self.optimizers = []

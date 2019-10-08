@@ -20,6 +20,7 @@ class ModelOpts:
         self.path_pre_trained_model = None
         self.criterion = 'cross_entropy'
         self.type = 'seg'
+        self.class_weights = None
 
         # Attention
         self.nonlocal_mode = 'concatenation'
@@ -55,6 +56,7 @@ class ModelOpts:
         if hasattr(opts, 'attention_dsample'): self.attention_dsample = opts.attention_dsample
         # Classifier
         if hasattr(opts, 'aggregation_mode'): self.aggregation_mode = opts.aggregation_mode
+        if hasattr(opts, 'class_weights'): self.class_weights = opts.class_weights
 
 def get_model(json_opts):
 

@@ -4,6 +4,8 @@ import torch.nn.functional as F
 from torch.nn.modules.loss import _Loss
 from torch.autograd import Function, Variable
 
+import numpy as np
+
 def cross_entropy_2D(input, target, weight=None, size_average=True):
     n, c, h, w = input.size()
     log_p = F.log_softmax(input, dim=1)
@@ -44,6 +46,39 @@ class SoftDiceLoss(nn.Module):
 
         score = torch.sum(2.0 * inter / union)
         score = 1.0 - score / (float(batch_size) * float(self.n_classes))
+
+        return score
+
+
+class WeightedSoftDiceLoss(nn.Module):
+    def __init__(self, n_classes, weights):
+        super(WeightedSoftDiceLoss, self).__init__()
+        self.one_hot_encoder = One_Hot(n_classes).forward
+        self.n_classes = n_classes
+
+        if weights is None:
+            weights = [1] * n_classes
+        else:
+            assert len(weights) == n_classes
+
+        weights = np.array(weights, dtype='float32')
+        weights /= np.sum(weights)
+        weights = torch.from_numpy(weights).type(torch.FloatTensor)
+
+        self.register_buffer('weights', weights)
+
+    def forward(self, input, target):
+        smooth = 0.01
+        batch_size = input.size(0)
+
+        input = F.softmax(input, dim=1).view(batch_size, self.n_classes, -1)
+        target = self.one_hot_encoder(target).contiguous().view(batch_size, self.n_classes, -1)
+
+        inter = torch.sum(input * target, 2) + smooth
+        union = torch.sum(input, 2) + torch.sum(target, 2) + smooth
+
+        score = torch.sum((2.0 * inter / union) * self.weights[None, :])
+        score = 1.0 - score / float(batch_size)
 
         return score
 
