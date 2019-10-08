@@ -21,6 +21,9 @@ class RectumSegmentationDataset(data.Dataset):
         if isfile(exclude_file):
             with open(exclude_file) as exclude_fs:
                 for r in exclude_fs.readlines():
+                    r = r.replace('\n', '').replace('\r', '')
+                    if r == '':
+                        continue
                     exluded.add(r.lower())
             logger.info('Exclusion filter enabled! Read %i filenames in %s', len(exluded), exclude_file)
 
