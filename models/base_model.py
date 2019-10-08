@@ -63,7 +63,10 @@ class BaseModel():
 
     # helper saving function that can be used by subclasses
     def save_network(self, network, network_label, epoch_label, gpu_ids):
-        print('Saving the model {0} at the end of epoch {1}'.format(network_label, epoch_label))
+        self.logger.info('Saving the model {0} at the end of epoch {1}'.format(network_label, epoch_label))
+        if isinstance(network, torch.nn.DataParallel):
+            self.logger.debug('Network in data parallel! Saving root network at network.module')
+            network = network.module
         save_filename = '{0:03d}_net_{1}.pth'.format(epoch_label, network_label)
         save_path = os.path.join(self.save_dir, save_filename)
         torch.save(network.cpu().state_dict(), save_path)
@@ -72,7 +75,7 @@ class BaseModel():
 
     # helper loading function that can be used by subclasses
     def load_network(self, network, network_label, epoch_label):
-        print('Loading the model {0} - epoch {1}'.format(network_label, epoch_label))
+        self.logger.info('Loading the model {0} - epoch {1}'.format(network_label, epoch_label))
         save_filename = '{0:03d}_net_{1}.pth'.format(epoch_label, network_label)
         save_path = os.path.join(self.save_dir, save_filename)
         network.load_state_dict(torch.load(save_path))
@@ -80,7 +83,7 @@ class BaseModel():
     def load_network_from_path(self, network, network_filepath, strict):
         network_label = os.path.basename(network_filepath)
         epoch_label = network_label.split('_')[0]
-        print('Loading the model {0} - epoch {1}'.format(network_label, epoch_label))
+        self.logger.info('Loading the model {0} - epoch {1}'.format(network_label, epoch_label))
         network.load_state_dict(torch.load(network_filepath), strict=strict)
 
     # update learning rate (called once every epoch)
@@ -91,7 +94,7 @@ class BaseModel():
             else:
                 scheduler.step()
             lr = self.optimizers[0].param_groups[0]['lr']
-        print('current learning rate = %.7f' % lr)
+        self.logger.info('current learning rate = %.7f' % lr)
 
     # returns the number of trainable parameters
     def get_number_parameters(self):
