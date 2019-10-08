@@ -81,22 +81,27 @@ def train(arguments):
     epoch = -1
     slack_logger.info('Starting training for experiment %s', json_opts.model.experiment_name)
     try:
+        accumulate_iter = getattr(train_opts, "accumulate_iter", 1)
+
         for epoch in range(model.which_epoch + 1, train_opts.n_epochs + 1):
             logger.info('(epoch: %d, total # iters: %d)' % (epoch, len(train_loader)))
-            #map_memory(epoch, json_opts)
 
             # Training Iterations
             for epoch_iter, (images, labels) in tqdm(enumerate(train_loader, 1), total=len(train_loader)):
                 # Make a training update
                 model.set_input(images, labels)
-                model.optimize_parameters()
-                #model.optimize_parameters_accumulate_grd(epoch_iter)
+                model.optimize_parameters(epoch_iter, accumulate_iter)
 
                 # Error visualisation
                 errors = model.get_current_errors()
                 error_logger.update(errors, split='train')
                 del images
                 del labels
+
+            # Update the network parameters if some have been accumulated (epoch_iter % accumulate_iter != 0)
+            # Reflects update from different-sized final batch
+            if epoch_iter % accumulate_iter != 0:
+                model.optimizer_S.step()
 
             # Validation Iterations
             for epoch_iter, (images, labels) in tqdm(enumerate(valid_loader, 1), total=len(valid_loader)):
@@ -156,29 +161,6 @@ def _get_loss_msg(error_logger):
             if np.isscalar(v):
                 loss_msg += '%s: %.3f ' % (k, v)
     return loss_msg
-
-
-def map_memory(epoch, json_opts):
-    with open(os.path.join(json_opts.model.checkpoints_dir, 'gc_epoch_%i.txt' % epoch), mode='w') as file_fs:
-        total = 0
-        for obj in gc.get_objects():
-            try:
-                if torch.is_tensor(obj):
-                    t = obj
-                elif hasattr(obj, 'data') and torch.is_tensor(obj.data):
-                    t = obj
-                else:
-                    t = None
-
-                if t is not None and t.is_cuda:
-                    obj_size = reduce(op.mul, obj.size()) if len(obj.size()) > 0 else 0
-                    total += obj_size
-                    file_fs.write("%s\t%s\t%s\n" % (obj_size, type(obj), obj.size()))
-            except Exception:
-                pass
-        file_fs.write('total: %s\n' % total)
-        print('total: %s' % total)
-        print(torch.cuda.memory_allocated())
 
 
 if __name__ == '__main__':

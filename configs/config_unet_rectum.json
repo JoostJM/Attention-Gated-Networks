@@ -6,6 +6,7 @@
     "lr_policy": "step",
     "lr_decay_iters": 250,
     "batchSize": 1,
+    "accumulate_iter": 1,
     "preloadData": false
   },
   "visualisation":{

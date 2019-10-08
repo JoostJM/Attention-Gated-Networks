@@ -94,19 +94,24 @@ class FeedForwardClassifier(BaseModel):
             self.logits = self.net.apply_argmax_softmax(self.prediction)
             self.pred = self.logits.data.max(1)
 
-
     def backward(self):
         #print(self.net.apply_argmax_softmax(self.prediction), self.target)
         self.loss = self.criterion(self.prediction, self.target)
         self.loss.backward()
 
-    def optimize_parameters(self):
+    def optimize_parameters(self, iteration, accumulate_iters=1):
+        if iteration == 1:
+            self.optimizer.zero_grad()
+
         self.net.train()
         self.forward(split='train')
-
-        self.optimizer.zero_grad()
         self.backward()
-        self.optimizer.step()
+
+        # Check to see if the network parameters should be updated
+        # If not, gradients are accumulated
+        if iteration % accumulate_iters == 0:
+            self.optimizer.step()
+            self.optimizer.zero_grad()
 
     def test(self):
         self.net.eval()

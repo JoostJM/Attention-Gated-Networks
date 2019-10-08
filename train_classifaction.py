@@ -154,7 +154,7 @@ def train(arguments):
         for epoch_iter, (images, labels) in tqdm(enumerate(train_loader, 1), total=len(train_loader)):
             # Make a training update
             model.set_input(images, labels)
-            model.optimize_parameters()
+            model.optimize_parameters(epoch_iter)
 
             if epoch == (train_opts.n_epochs-1):
                 import time

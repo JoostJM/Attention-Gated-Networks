@@ -96,22 +96,16 @@ class FeedForwardSegmentation(BaseModel):
         self.loss_S = self.criterion(self.prediction, self.target)
         self.loss_S.backward()
 
-    def optimize_parameters(self):
-        self.net.train()
-        self.forward(split='train')
+    def optimize_parameters(self, iteration, accumulate_iters=1):
+        if iteration == 1:
+            self.optimizer_S.zero_grad()
 
-        self.optimizer_S.zero_grad()
-        self.backward()
-        self.optimizer_S.step()
-
-    # This function updates the network parameters every "accumulate_iters"
-    def optimize_parameters_accumulate_grd(self, iteration):
-        accumulate_iters = int(2)
-        if iteration == 0: self.optimizer_S.zero_grad()
         self.net.train()
         self.forward(split='train')
         self.backward()
 
+        # Check to see if the network parameters should be updated
+        # If not, gradients are accumulated
         if iteration % accumulate_iters == 0:
             self.optimizer_S.step()
             self.optimizer_S.zero_grad()

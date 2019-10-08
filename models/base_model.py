@@ -46,7 +46,7 @@ class BaseModel():
     def get_image_paths(self):
         pass
 
-    def optimize_parameters(self):
+    def optimize_parameters(self, iteration, accumulate_iters=1):
         pass
 
     def get_current_visuals(self):
