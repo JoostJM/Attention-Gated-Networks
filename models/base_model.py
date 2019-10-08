@@ -76,11 +76,17 @@ class BaseModel():
     # helper loading function that can be used by subclasses
     def load_network(self, network, network_label, epoch_label):
         self.logger.info('Loading the model {0} - epoch {1}'.format(network_label, epoch_label))
+        if isinstance(network, torch.nn.DataParallel):
+            self.logger.debug('Network in data parallel! Loading to network at network.module')
+            network = network.module
         save_filename = '{0:04d}_net_{1}.pth'.format(epoch_label, network_label)
         save_path = os.path.join(self.save_dir, save_filename)
         network.load_state_dict(torch.load(save_path))
 
     def load_network_from_path(self, network, network_filepath, strict):
+        if isinstance(network, torch.nn.DataParallel):
+            self.logger.debug('Network in data parallel! Loading to network at network.module')
+            network = network.module
         network_label = os.path.basename(network_filepath)
         epoch_label = network_label.split('_')[0]
         self.logger.info('Loading the model {0} - epoch {1}'.format(network_label, epoch_label))
