@@ -110,6 +110,7 @@ class Transformations:
                                                                translation_range=self.shift_val,
                                                                zoom_range=self.scale_val,
                                                                interp=(sitk.sitkLinear, sitk.sitkNearestNeighbor)),
+                                      ts.NormalizeSimpleITK(norm_flag=[True, False]),
                                       ts.RandomCropSimpleITK(size=self.patch_size),
                                       ts.SimpleITKtoTensor(),
                                       ts.ChannelsFirst(),
@@ -117,6 +118,7 @@ class Transformations:
                                       ])
 
         valid_transform = ts.Compose([ts.PadSimpleITK(size=self.scale_size),
+                                      ts.NormalizeSimpleITK(norm_flag=[True, False]),
                                       ts.SpecialCropSimpleITK(size=self.patch_size, crop_type=0),
                                       ts.SimpleITKtoTensor(),
                                       ts.ChannelsFirst(),
