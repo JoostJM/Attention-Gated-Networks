@@ -20,6 +20,7 @@ from models import get_model
 
 
 def train(arguments):
+
     # Parse input arguments
     json_filename = arguments.config
     network_debug = arguments.debug
@@ -38,6 +39,15 @@ def train(arguments):
     _configure_logging(logging.INFO, True, log_file)
     logger = logging.getLogger()
     slack_logger = logging.getLogger('slack')
+
+    # Try to enable cudnn benchmark if cuda will be used
+    try:
+        if json_opts.model.gpu_ids is not None and len(json_opts.model.gpu_ids) > 0:
+            torch.backends.cudnn.enabled = True
+            torch.backends.cudnn.benchmark = True
+            logger.info('CuDNN benchmark enabled')
+    except Exception:
+        logger.warning('Failed to enable CuDNN benchmark', exc_info=True)
 
     # Setup Dataset and Augmentation
     ds_class = get_dataset(arch_type)
@@ -58,9 +68,9 @@ def train(arguments):
     train_dataset = ds_class(ds_path, split='train',      transform=ds_transform['train'], preload_data=train_opts.preloadData)
     valid_dataset = ds_class(ds_path, split='validation', transform=ds_transform['valid'], preload_data=train_opts.preloadData)
     test_dataset  = ds_class(ds_path, split='test',       transform=ds_transform['valid'], preload_data=train_opts.preloadData)
-    train_loader = DataLoader(dataset=train_dataset, num_workers=16, batch_size=train_opts.batchSize, shuffle=True)
-    valid_loader = DataLoader(dataset=valid_dataset, num_workers=16, batch_size=train_opts.batchSize, shuffle=False)
-    test_loader  = DataLoader(dataset=test_dataset,  num_workers=16, batch_size=train_opts.batchSize, shuffle=False)
+    train_loader = DataLoader(dataset=train_dataset, num_workers=4, batch_size=train_opts.batchSize, shuffle=True)
+    valid_loader = DataLoader(dataset=valid_dataset, num_workers=4, batch_size=train_opts.batchSize, shuffle=False)
+    test_loader  = DataLoader(dataset=test_dataset,  num_workers=4, batch_size=train_opts.batchSize, shuffle=False)
 
     # Visualisation Parameters
     visualizer = Visualiser(json_opts.visualisation, save_dir=model.save_dir)
@@ -85,6 +95,8 @@ def train(arguments):
                 # Error visualisation
                 errors = model.get_current_errors()
                 error_logger.update(errors, split='train')
+                del images
+                del labels
 
             # Validation and Testing Iterations
             for loader, split in zip([valid_loader, test_loader], ['validation', 'test']):
@@ -102,6 +114,8 @@ def train(arguments):
                     # Visualise predictions
                     visuals = model.get_current_visuals()
                     visualizer.display_current_results(visuals, epoch=epoch, save_result=False)
+                    del images
+                    del labels
 
             # Update the plots
             for split in ['train', 'validation', 'test']:
@@ -119,6 +133,9 @@ def train(arguments):
 
             # Update the model learning rate
             model.update_learning_rate()
+
+            if model.use_cuda:
+                torch.cuda.empty_cache()
 
         # Store the final model
         slack_logger.info('(Experiment %s) Training finished! Saving model...',
