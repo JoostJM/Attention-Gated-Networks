@@ -29,7 +29,7 @@ def main(arguments):
 
   # Set up Logging
   log_file = os.path.join(json_opts.model.checkpoints_dir, json_opts.model.experiment_name + '.log')
-  _configure_logging(logging.INFO, True, log_file)
+  _configure_logging(logging.INFO, False, log_file)
 
   # Setup the NN Model
   model = get_model(json_opts.model)
