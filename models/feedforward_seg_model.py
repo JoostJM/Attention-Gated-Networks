@@ -5,7 +5,7 @@ import torch.optim as optim
 from collections import OrderedDict
 import utils.util as util
 from .base_model import BaseModel
-from .networks import get_network
+from .networks import get_network, unet_CT_single_att_dsv_3D
 from .layers.loss import *
 from .networks_other import get_scheduler, print_network, benchmark_fp_bp_time
 from .utils import segmentation_stats, get_optimizer, get_criterion
@@ -33,8 +33,8 @@ class FeedForwardSegmentation(BaseModel):
                                attention_dsample=opts.attention_dsample)
         if self.use_cuda:
             self.net = self.net.cuda(self.gpu_ids[0])
-            if len(self.gpu_ids) > 1:
-                self.net = torch.nn.DataParallel(self.net, self.gpu_ids, self.gpu_ids[0])
+            if len(self.gpu_ids) > 1 and isinstance(self.net, unet_CT_single_att_dsv_3D):
+                self.net.split_multi_gpu(self.gpu_ids)
 
         # load the model if a path is specified or it is in inference mode
         if not self.isTrain or opts.continue_train:
