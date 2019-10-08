@@ -35,6 +35,8 @@ def train(arguments):
     experiment = json_opts.model.experiment_name
 
     # Set up Logging
+    if not os.path.isdir(json_opts.model.checkpoints_dir):
+        os.makedirs(json_opts.model.checkpoints_dir)
     log_file = os.path.join(json_opts.model.checkpoints_dir, experiment + '.log')
     _configure_logging(logging.INFO, True, log_file)
     logger = logging.getLogger()
