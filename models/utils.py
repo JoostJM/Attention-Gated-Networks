@@ -19,11 +19,16 @@ def get_optimizer(option, params):
                               nesterov=True,
                               weight_decay=option.l2_reg_weight)
 
-    if opt_alg == 'adam':
+    elif opt_alg == 'adam':
         optimizer = optim.Adam(params,
                                lr=option.lr_rate,
                                betas=(0.9, 0.999),
                                weight_decay=option.l2_reg_weight)
+    else:
+        raise ValueError('optimizer algorithm %s not recognized!' % opt_alg)
+
+    for group in optimizer.param_groups:
+        group['initial_lr'] = option.lr_rate
 
     return optimizer
 
