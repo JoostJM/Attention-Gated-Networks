@@ -81,6 +81,8 @@ def train(arguments):
     slack_logger.info('Starting training for experiment %s', json_opts.model.experiment_name)
     try:
         accumulate_iter = getattr(train_opts, "accumulate_iter", 1)
+        if accumulate_iter > 1:
+          logger.info('Accumulating gradients every %d iters', accumulate_iter)
 
         assert model.which_epoch < train_opts.n_epochs, \
             'Model training already at designated number of epochs (%i)' % train_opts.n_epochs
