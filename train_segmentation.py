@@ -143,6 +143,10 @@ def train(arguments):
         slack_logger.info('(Experiment %s) Training finished! Saving model...',
                           json_opts.model.experiment_name)
         model.save(epoch)
+
+        if arguments.eval:
+            import eval_segmentation
+            eval_segmentation.eval(model, json_opts)
     except Exception:
         slack_logger.critical('(Experiment %s) Oh No! Training failed!!', json_opts.model.experiment_name, exc_info=True)
 
@@ -188,6 +192,8 @@ if __name__ == '__main__':
     parser.add_argument('-c', '--config',  help='training config file', required=True)
     parser.add_argument('-d', '--debug',   help='returns number of parameters and bp/fp runtime', action='store_true')
     parser.add_argument('-s', '--slack',   help='enables logging to Slack Messenger', action='store_true')
+    parser.add_argument('-e', '--eval',    help='enables creating evaluation of the final model', action='store_true')
+
     args = parser.parse_args()
 
     train(args)
