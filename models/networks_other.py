@@ -91,17 +91,17 @@ def adjust_learning_rate(optimizer, lr):
     for param_group in optimizer.param_groups:
         param_group['lr'] = lr
 
-def get_scheduler(optimizer, opt):
+def get_scheduler(optimizer, opt, last_epoch=0):
     print('opt.lr_policy = [{}]'.format(opt.lr_policy))
     if opt.lr_policy == 'lambda':
         def lambda_rule(epoch):
             lr_l = 1.0 - max(0, epoch + 1 + opt.epoch_count - opt.niter) / float(opt.niter_decay + 1)
             return lr_l
-        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule, last_epoch=last_epoch)
     elif opt.lr_policy == 'step':
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.5)
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.5, last_epoch=last_epoch)
     elif opt.lr_policy == 'step2':
-        scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1)
+        scheduler = lr_scheduler.StepLR(optimizer, step_size=opt.lr_decay_iters, gamma=0.1, last_epoch=last_epoch)
     elif opt.lr_policy == 'plateau':
         print('schedular=plateau')
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, threshold=0.01, patience=5)
@@ -119,7 +119,7 @@ def get_scheduler(optimizer, opt):
             elif 200 <= epoch:
                 lr_l = 0.01
             return lr_l
-        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule, last_epoch=last_epoch)
     elif opt.lr_policy == 'step_warmstart2':
         def lambda_rule(epoch):
             #print(epoch)
@@ -132,7 +132,7 @@ def get_scheduler(optimizer, opt):
             elif 100 <= epoch:
                 lr_l = 0.01
             return lr_l
-        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule)
+        scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lambda_rule, last_epoch=last_epoch)
     else:
 
         return NotImplementedError('learning rate policy [%s] is not implemented', opt.lr_policy)

@@ -81,7 +81,7 @@ def train(arguments):
     epoch = -1
     slack_logger.info('Starting training for experiment %s', json_opts.model.experiment_name)
     try:
-        for epoch in range(model.which_epoch, train_opts.n_epochs):
+        for epoch in range(model.which_epoch + 1, train_opts.n_epochs + 1):
             logger.info('(epoch: %d, total # iters: %d)' % (epoch, len(train_loader)))
             #map_memory(epoch, json_opts)
 

@@ -41,7 +41,7 @@ class FeedForwardSegmentation(BaseModel):
             self.path_pre_trained_model = opts.path_pre_trained_model
             if self.path_pre_trained_model:
                 self.load_network_from_path(self.net, self.path_pre_trained_model, strict=False)
-                self.which_epoch = int(0)
+                self.which_epoch = opts.which_epoch
             else:
                 self.which_epoch = opts.which_epoch
                 self.load_network(self.net, 'S', self.which_epoch)
@@ -62,7 +62,7 @@ class FeedForwardSegmentation(BaseModel):
 
     def set_scheduler(self, train_opt):
         for optimizer in self.optimizers:
-            self.schedulers.append(get_scheduler(optimizer, train_opt))
+            self.schedulers.append(get_scheduler(optimizer, train_opt, last_epoch=self.which_epoch))
             self.logger.info('Scheduler is added for optimiser {0}'.format(optimizer))
 
     def set_input(self, *inputs):
