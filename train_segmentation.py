@@ -106,10 +106,14 @@ def train(arguments):
 
             # Validation Iterations
             for epoch_iter, (images, labels) in tqdm(enumerate(valid_loader, 1), total=len(valid_loader)):
-
                 # Make a forward pass with the model
-                model.set_input(images, labels)
-                model.validate()
+                if hasattr(torch, 'no_grad'):
+                    with torch.no_grad:
+                        model.set_input(images, labels)
+                        model.validate()
+                else:
+                    model.set_input(images, labels)
+                    model.validate()
 
                 # Error visualisation
                 errors = model.get_current_errors()

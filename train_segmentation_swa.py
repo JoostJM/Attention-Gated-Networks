@@ -81,7 +81,9 @@ def train(arguments):
   model.set_scheduler(train_opts)
   slack_logger.info('Starting training for experiment %s', json_opts.model.experiment_name)
   try:
-    init_n_epoch = train_opts.n_epochs + 1
+    accumulate_iter = getattr(train_opts, "accumulate_iter", 1)
+
+    init_n_epoch = train_opts.n_epochs
     if train_opts.swa:
       init_n_epoch = train_opts.swa_start - 1
 
@@ -95,14 +97,18 @@ def train(arguments):
         for epoch_iter, (images, labels) in tqdm(enumerate(train_loader, 1), total=len(train_loader)):
           # Make a training update
           model.set_input(images, labels)
-          model.optimize_parameters()
-          # model.optimize_parameters_accumulate_grd(epoch_iter)
+          model.optimize_parameters(epoch_iter, accumulate_iter)
 
           # Error visualisation
           errors = model.get_current_errors()
           error_logger.update(errors, split='train')
           del images
           del labels
+
+        # Update the network parameters if some have been accumulated (epoch_iter % accumulate_iter != 0)
+        # Reflects update from different-sized final batch
+        if epoch_iter % accumulate_iter != 0:
+          model.optimizer_S.step()
 
         # Validation Iterations
         for epoch_iter, (images, labels) in tqdm(enumerate(valid_loader, 1), total=len(valid_loader)):
@@ -127,7 +133,7 @@ def train(arguments):
           del labels
 
         # Update the plots
-        for split in ['train', 'validation']:
+        for split in error_logger.variables.keys():
           visualizer.plot_current_errors(epoch, error_logger.get_errors(split), split_name=split)
           visualizer.print_current_errors(epoch, error_logger.get_errors(split), split_name=split)
 
@@ -190,14 +196,18 @@ def train(arguments):
         for epoch_iter, (images, labels) in tqdm(enumerate(train_loader, 1), total=len(train_loader)):
           # Make a training update
           model.set_input(images, labels)
-          model.optimize_parameters()
-          # model.optimize_parameters_accumulate_grd(epoch_iter)
+          model.optimize_parameters(epoch_iter, accumulate_iter)
 
           # Error visualisation
           errors = model.get_current_errors()
           error_logger.update(errors, split='train')
           del images
           del labels
+
+        # Update the network parameters if some have been accumulated (epoch_iter % accumulate_iter != 0)
+        # Reflects update from different-sized final batch
+        if epoch_iter % accumulate_iter != 0:
+          model.optimizer_S.step()
 
         # Validation Iterations
         for epoch_iter, (images, labels) in tqdm(enumerate(valid_loader, 1), total=len(valid_loader)):
@@ -291,8 +301,14 @@ def get_swa_scheduler(optimizer, train_opts, last_epoch):
     alpha = (1 - t) + t * ratio
     return alpha
 
+  if last_epoch < 0:
+    for group in optimizer.param_groups:
+      group['lr'] = a1
+  else:
+    for group in optimizer.param_groups:
+      group.setdefault('initial_lr', a1)
+
   scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=swa_rule, last_epoch=last_epoch)
-  scheduler.base_lrs = [a1] * len(scheduler.base_lrs)
   return scheduler
 
 
