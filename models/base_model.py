@@ -15,7 +15,7 @@ class BaseModel():
         self.optimizers = []
         self.save_dir = None
         self.gpu_ids = []
-        self.which_epoch = int(0)
+        self.which_epoch = int(1)
         self.path_pre_trained_model = None
         self.logger = logging.getLogger(str(self.__module__))
 

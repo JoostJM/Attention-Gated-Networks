@@ -41,7 +41,7 @@ class FeedForwardSegmentation(BaseModel):
             self.path_pre_trained_model = opts.path_pre_trained_model
             if self.path_pre_trained_model:
                 self.load_network_from_path(self.net, self.path_pre_trained_model, strict=False)
-                self.which_epoch = int(0)
+                self.which_epoch = opts.which_epoch
             else:
                 self.which_epoch = opts.which_epoch
                 self.load_network(self.net, 'S', self.which_epoch)
