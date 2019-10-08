@@ -38,7 +38,7 @@ def train(arguments):
     if not os.path.isdir(json_opts.model.checkpoints_dir):
         os.makedirs(json_opts.model.checkpoints_dir)
     log_file = os.path.join(json_opts.model.checkpoints_dir, experiment + '.log')
-    _configure_logging(logging.INFO, True, log_file)
+    _configure_logging(logging.INFO, arguments.slack, log_file)
     logger = logging.getLogger()
     slack_logger = logging.getLogger('slack')
 
@@ -187,6 +187,7 @@ if __name__ == '__main__':
 
     parser.add_argument('-c', '--config',  help='training config file', required=True)
     parser.add_argument('-d', '--debug',   help='returns number of parameters and bp/fp runtime', action='store_true')
+    parser.add_argument('-s', '--slack',   help='enables logging to Slack Messenger', action='store_true')
     args = parser.parse_args()
 
     train(args)
