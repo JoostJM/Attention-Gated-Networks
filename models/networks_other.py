@@ -93,7 +93,9 @@ def adjust_learning_rate(optimizer, lr):
 
 def get_scheduler(optimizer, opt, last_epoch=-1):
     print('opt.lr_policy = [{}]'.format(opt.lr_policy))
-    if last_epoch > -1:
+    if last_epoch == 0:
+        last_epoch = -1
+    elif last_epoch > 0:
         for group in optimizer.param_groups:
             group.setdefault('initial_lr', opt.lr_rate)
 

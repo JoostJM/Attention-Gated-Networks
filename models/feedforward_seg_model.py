@@ -62,7 +62,7 @@ class FeedForwardSegmentation(BaseModel):
 
     def set_scheduler(self, train_opt):
         for optimizer in self.optimizers:
-            self.schedulers.append(get_scheduler(optimizer, train_opt, last_epoch=self.which_epoch - 1))
+            self.schedulers.append(get_scheduler(optimizer, train_opt, last_epoch=self.which_epoch))
             self.logger.info('Scheduler is added for optimiser {0}'.format(optimizer))
 
     def set_input(self, *inputs):
