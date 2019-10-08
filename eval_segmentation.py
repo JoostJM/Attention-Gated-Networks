@@ -37,7 +37,7 @@ def main(arguments):
   eval(model, json_opts)
 
 
-def eval(model, opts):
+def eval(model, opts, label_dir='label_pred'):
   global logger
 
   logger.info('Evaluating model')
@@ -63,8 +63,7 @@ def eval(model, opts):
   test_loader = DataLoader(dataset=test_dataset, num_workers=4, batch_size=1, shuffle=False)
 
   # Setup output directory
-  label_dir = os.path.dirname(test_dataset.target_filenames[0])
-  out_dir = label_dir + '_pred'
+  out_dir = os.path.join(model.save_dir, label_dir)
 
   if not os.path.isdir(out_dir):
     os.makedirs(out_dir)
