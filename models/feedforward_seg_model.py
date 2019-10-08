@@ -86,9 +86,12 @@ class FeedForwardSegmentation(BaseModel):
         elif split == 'test':
             self.prediction = self.net(Variable(self.input, volatile=True))
             # Apply a softmax and return a segmentation map
-            self.logits = self.net.apply_argmax_softmax(self.prediction)
+            if isinstance(self.net, torch.nn.DataParallel):
+                self.logits = self.net.module.apply_argmax_softmax(self.prediction)
+            else:
+                self.logits = self.net.apply_argmax_softmax(self.prediction)
             self.pred_seg = self.logits.data.max(1)[1].unsqueeze(1)
-            
+
     def backward(self):
         self.loss_S = self.criterion(self.prediction, self.target)
         self.loss_S.backward()

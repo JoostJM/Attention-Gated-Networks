@@ -60,16 +60,7 @@ class _GridAttentionBlockND(nn.Module):
         for m in self.children():
             init_weights(m, init_type='kaiming')
 
-        # Define the operation
-        if mode == 'concatenation':
-            self.operation_function = self._concatenation
-        elif mode == 'concatenation_debug':
-            self.operation_function = self._concatenation_debug
-        elif mode == 'concatenation_residual':
-            self.operation_function = self._concatenation_residual
-        else:
-            raise NotImplementedError('Unknown operation function.')
-
+        self.mode = mode
 
     def forward(self, x, g):
         '''
@@ -78,7 +69,16 @@ class _GridAttentionBlockND(nn.Module):
         :return:
         '''
 
-        output = self.operation_function(x, g)
+        # Define the operation
+        if self.mode == 'concatenation':
+            output = self._concatenation(x, g)
+        elif self.mode == 'concatenation_debug':
+            output = self._concatenation_debug(x, g)
+        elif self.mode == 'concatenation_residual':
+            output = self._concatenation_residual(x, g)
+        else:
+            raise NotImplementedError('Unknown operation function.')
+
         return output
 
     def _concatenation(self, x, g):
@@ -130,7 +130,6 @@ class _GridAttentionBlockND(nn.Module):
         W_y = self.W(y)
 
         return W_y, sigm_psi_f
-
 
     def _concatenation_residual(self, x, g):
         input_size = x.size()
