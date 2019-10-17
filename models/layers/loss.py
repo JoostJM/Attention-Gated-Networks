@@ -63,7 +63,7 @@ class WeightedSoftDiceLoss(nn.Module):
 
         weights = np.array(weights, dtype='float32')
         weights /= np.sum(weights)
-        weights = torch.from_numpy(weights).type(torch.FloatTensor)
+        weights = Variable(torch.from_numpy(weights).type(torch.FloatTensor))
 
         self.register_buffer('weights', weights)
 
