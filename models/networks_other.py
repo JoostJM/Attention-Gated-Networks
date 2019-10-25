@@ -93,6 +93,10 @@ def adjust_learning_rate(optimizer, lr):
 
 def get_scheduler(optimizer, opt, last_epoch=-1):
     print('opt.lr_policy = [{}]'.format(opt.lr_policy))
+    if last_epoch > -1:
+        for group in optimizer.param_groups:
+            group.setdefault('initial_lr', opt.lr_rate)
+
     if opt.lr_policy == 'lambda':
         def lambda_rule(epoch):
             lr_l = 1.0 - max(0, epoch + 1 + opt.epoch_count - opt.niter) / float(opt.niter_decay + 1)
