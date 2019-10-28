@@ -78,11 +78,12 @@ def train(arguments):
 
     # Training Function
     model.set_scheduler(train_opts)
-    epoch = -1
     slack_logger.info('Starting training for experiment %s', json_opts.model.experiment_name)
     try:
         accumulate_iter = getattr(train_opts, "accumulate_iter", 1)
 
+        assert model.which_epoch < train_opts.n_epochs, \
+            'Model training already at designated number of epochs (%i)' % train_opts.n_epochs
         for epoch in range(model.which_epoch + 1, train_opts.n_epochs + 1):
             logger.info('(epoch: %d, total # iters: %d)' % (epoch, len(train_loader)))
 
