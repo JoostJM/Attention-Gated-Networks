@@ -97,8 +97,7 @@
       ],
       "batchSize": [1, 2, 4, 8, 16]
     },
-    "maxBatchSize": 4,
-    "gpu_ids": [0, 1]
+    "maxBatchSize": 4
   },
 
   "visualisation":{

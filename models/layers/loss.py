@@ -76,7 +76,7 @@ class One_Hot(nn.Module):
     def __init__(self, depth):
         super(One_Hot, self).__init__()
         self.depth = depth
-        self.ones = torch.sparse.torch.eye(depth).cuda()
+        self.ones = torch.eye(depth).cuda()
 
     def forward(self, X_in):
         n_dim = X_in.dim()

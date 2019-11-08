@@ -3,43 +3,162 @@ import torch
 from torch.utils.data import DataLoader
 from tqdm import tqdm
 
+from copy import deepcopy
+from queue import Queue
 import json
 import os
 import logging
+import multiprocessing
+import time
+import threading
+
+import six
 
 from dataio.loader import get_dataset
-from utils.util import json_file_to_pyobj
 from utils.visualiser import Visualiser
 from utils.error_logger import ErrorLogger
 from utils import configure_logging
 
 from models import get_model
+from hyperoptimization import HyperSpace, deep_update
+
+_log_is_init = False
 
 
-def train(arguments):
+def main(arguments):
   # Parse input arguments
   json_filename = arguments.config
-  network_debug = arguments.debug
 
   # Load options
   with open(json_filename) as j_fs:
     json_opts = json.load(j_fs)
 
   experiment = json_opts['experiment_name']
+  model_opts = json_opts['model']
+  batchSize = json_opts['training'].get('batchSize', 1)
+  maxBatchSize = json_opts['hyperspace']['maxBatchSize']
+
+  json_opts['training'].update(HyperSpace.compute_batch_size(batchSize, maxBatchSize))
+
+  out_dir = os.path.join(model_opts['checkpoints_dir'], experiment)
+
+  # Set up Logging
+  if not os.path.isdir(out_dir):
+    os.makedirs(out_dir)
+  log_file = os.path.join(out_dir, experiment + '.log')
+  log_config, log_listener = configure_logging(logging.INFO, slack=arguments.slack, log_file=log_file, thread_safe=True)
+  logger = logging.getLogger()
+  slack_logger = logging.getLogger('slack')
+
+  try:
+    hyperspace = HyperSpace(json_opts['hyperspace'])
+    hyperspace.save_space(os.path.join(out_dir, 'hyperspace.csv'))
+
+    by_batch = {}
+    for h_idx, h in hyperspace.hyperspace.iterrows():
+      b = h.get('batchSize', batchSize)
+      if b not in by_batch:
+        by_batch[b] = Queue(-1)
+      by_batch[b].put((h_idx, h))
+
+    batch_sizes = sorted(by_batch.keys(), reverse=True)
+    gpu_ids = model_opts.get('gpu_ids', None)
+    if gpu_ids is None:
+      slots_used = {None: 0}
+    else:
+      slots_used = {gpu: 0 for gpu in gpu_ids}
+
+    workers = []
+    while len(by_batch) > 0:
+      for gpu in slots_used:
+        while slots_used[gpu] < maxBatchSize:
+          slot_space = maxBatchSize - slots_used[gpu]
+          i = 0
+          while i < len(batch_sizes) and batch_sizes[i] > slot_space:
+            i += 1
+
+          if i == len(batch_sizes):
+            # No batch sizes left that would fit in the remaining space...
+            break
+
+          worker_batchSize = batch_sizes[i]
+          parent_results_pipe, child_results_pipe = multiprocessing.Pipe()
+
+          config_idx, config = by_batch[worker_batchSize].get()
+          if by_batch[worker_batchSize].empty():
+            del by_batch[worker_batchSize]
+            del batch_sizes[i]
+
+          slack_logger.info('Starting experiment for config %i (worker %i))',
+                      config_idx, len(workers))
+
+          config_opts = deepcopy(json_opts)
+
+          config_opts['experiment_name'] = experiment + '/' + str(config_idx)
+
+          config_opts['training'] = deep_update(config_opts['training'], config)
+          config_opts['log_config'] = log_config
+          config_opts['results'] = child_results_pipe
+          if gpu is not None:
+            config_opts['model']['gpu_ids'] = [gpu]
+
+          p = multiprocessing.Process(target=train, args=(config_opts,))
+          p.start()
+          workers.append((gpu, worker_batchSize, p, parent_results_pipe))
+          slots_used[gpu] += worker_batchSize
+
+      while np.all([p[2].is_alive() for p in workers]):
+        time.sleep(30)
+
+      for i in range(len(workers) - 1, -1, -1):
+        if workers[i][2].is_alive():
+          continue
+        # worker is done! clear up the space for new worker
+        logger.info('Worker %i is done!', i)
+        gpu, worker_batchSize, p, results_pipe = workers[i]
+        p.join()
+        slots_used[gpu] -= worker_batchSize
+
+        # Store the results in the hyperspace
+        if results_pipe.poll(3):
+          hyperspace.add_result(results_pipe.recv())
+          hyperspace.save_space(os.path.join(out_dir, 'hyperspace.csv'))
+
+        # Remove the worker from the list
+        results_pipe.close()
+        del p
+        del results_pipe
+        del workers[i]
+
+  except Exception:
+    slack_logger.critical('(Experiment %s) Oh No! Hyperspace enumeration failed!!', experiment, exc_info=True)
+  finally:
+    if log_listener is not None:
+      log_listener.stop()
+
+
+def train(json_opts):
+  global _log_is_init
+  log_config = json_opts['log_config']
+  if not _log_is_init:
+    from logging import config
+    config.dictConfig(log_config)
+
+  logger = logging.getLogger()
+  slack_logger = logging.getLogger('slack')
+
+  experiment = json_opts['experiment_name']
+  config_idx = int(experiment.split('/')[-1])
   data_opts = json_opts['data']
   train_opts = json_opts['training']
   model_opts = json_opts['model']
 
   batchSize = train_opts.get('batchSize', 1)
-  checkpoints_dir = model_opts['checkpoints_dir']
+  results_pipe = json_opts['results']
+  results = {config_idx: {}}
 
-  # Set up Logging
-  if not os.path.isdir(checkpoints_dir):
-    os.makedirs(checkpoints_dir)
-  log_file = os.path.join(checkpoints_dir, experiment + '.log')
-  configure_logging(logging.INFO, slack=arguments.slack, log_file=log_file)
-  logger = logging.getLogger()
-  slack_logger = logging.getLogger('slack')
+  # Set the current thread name to the name of the experiment
+  threading.current_thread().setName(experiment)
 
   # Try to enable cudnn benchmark if cuda will be used
   try:
@@ -51,16 +170,7 @@ def train(arguments):
     logger.warning('Failed to enable CuDNN benchmark', exc_info=True)
 
   # Setup the NN Model
-  swa_model = None
   model = get_model(experiment, **model_opts)
-  if network_debug:
-    augmentation_opts = json_opts['data']['augmentation']
-    input_size = (batchSize, model_opts['input_nc'], *augmentation_opts.patch_size)
-    logger.info('# of pars: %s', model.get_number_parameters())
-    logger.info(
-      'fp time: {0:.3f} sec\tbp time: {1:.3f} sec per sample'.format(*model.get_fp_bp_time(size=input_size)))
-    logger.info('Max_memory used: {0:.3f}'.format(torch.cuda.max_memory_allocated()))
-    exit()
 
   # Setup Data and Augmentation
   datasets = get_dataset(['train', 'validation'], **data_opts)
@@ -72,7 +182,7 @@ def train(arguments):
   error_logger = ErrorLogger()
 
   # Training Function
-  slack_logger.info('Starting training for experiment %s', experiment)
+  slack_logger.info('Starting training for experiment %s config:\n%s', experiment, dict_pretty_print(train_opts))
   try:
     model.initialize_training(**train_opts)
     accumulate_iter = getattr(train_opts, "accumulate_iter", 1)
@@ -128,10 +238,11 @@ def train(arguments):
           del images
           del labels
 
-        # Update the plots
+        # Update the plots and results_dict
         for split in error_logger.variables.keys():
           visualizer.plot_current_errors(epoch, error_logger.get_errors(split), split_name=split)
           visualizer.print_current_errors(epoch, error_logger.get_errors(split), split_name=split)
+          results[config_idx][split] = error_logger.get_errors(split)
 
         # Save the model parameters
         if epoch % train_opts.save_epoch_freq == 0:
@@ -175,6 +286,7 @@ def train(arguments):
         for split in error_logger.variables.keys():
           visualizer.plot_current_errors(epoch, error_logger.get_errors(split), split_name=split)
           visualizer.print_current_errors(epoch, error_logger.get_errors(split), split_name=split)
+          results[config_idx][split] = error_logger.get_errors(split)
 
         error_logger.reset()
 
@@ -234,6 +346,7 @@ def train(arguments):
         for split in error_logger.variables.keys():
           visualizer.plot_current_errors(epoch, error_logger.get_errors(split), split_name=split)
           visualizer.print_current_errors(epoch, error_logger.get_errors(split), split_name=split)
+          results[config_idx][split] = error_logger.get_errors(split)
 
         # Save the model parameters
         if epoch % train_opts['save_epoch_freq'] == 0:
@@ -247,14 +360,10 @@ def train(arguments):
       slack_logger.info('SWA Training finished!')
       if epoch % train_opts['save_epoch_freq'] != 0:  # Only save when not done so already
         model.save(epoch)
-
-    if arguments.eval:
-      import eval_segmentation
-      eval_segmentation.eval(model, json_opts)
-      if train_opts.get('swa', False):
-        eval_segmentation.eval(swa_model, json_opts, 'label_pred_swa')
   except Exception:
     slack_logger.critical('(Experiment %s) Oh No! Training failed!!', experiment, exc_info=True)
+
+  results_pipe.send(results)
 
 
 def update_swa(model, swa_model, swa_n, epoch, valid_loader, error_logger, visualizer):
@@ -330,16 +439,28 @@ def _get_loss_msg(error_logger):
   return loss_msg
 
 
+def dict_pretty_print(d):
+  def enum_d(d, prefix='\t'):
+    out_str = ''
+    for k, v in six.iteritems(d):
+      if isinstance(v, dict):
+        out_str += '\n%s%s:' % (prefix, k) + enum_d(v, prefix+'\t')
+      else:
+        out_str += '\n%s%s: %s' % (prefix, k, v)
+    return out_str
+
+  return enum_d(d)[1:]  # skip first newline
+
+
 if __name__ == '__main__':
   import argparse
 
-  parser = argparse.ArgumentParser(description='CNN Seg Training Function')
+  parser = argparse.ArgumentParser(description='CNN Seg hyperspace optimisation Function')
 
   parser.add_argument('-c', '--config', help='training config file', required=True)
   parser.add_argument('-d', '--debug', help='returns number of parameters and bp/fp runtime', action='store_true')
   parser.add_argument('-s', '--slack', help='enables logging to Slack Messenger', action='store_true')
-  parser.add_argument('-e', '--eval', help='enables creating evaluation of the final model', action='store_true')
 
   args = parser.parse_args()
 
-  train(args)
+  main(args)
