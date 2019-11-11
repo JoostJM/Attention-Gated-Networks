@@ -256,9 +256,6 @@ def train(json_opts):
         # Update the model learning rate
         model.update_learning_rate()
 
-        if model.use_cuda:
-          torch.cuda.empty_cache()
-
       # Store the final model
       slack_logger.info('(Experiment %s) Pre-training finished!', experiment)
       if epoch % train_opts['save_epoch_freq'] != 0:  # Only save when not done so already
@@ -457,7 +454,7 @@ if __name__ == '__main__':
 
   parser = argparse.ArgumentParser(description='CNN Seg hyperspace optimisation Function')
 
-  parser.add_argument('-c', '--config', help='training config file', required=True)
+  parser.add_argument('config', help='training config file')
   parser.add_argument('-d', '--debug', help='returns number of parameters and bp/fp runtime', action='store_true')
   parser.add_argument('-s', '--slack', help='enables logging to Slack Messenger', action='store_true')
 
