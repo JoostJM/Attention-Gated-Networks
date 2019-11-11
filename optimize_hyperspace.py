@@ -245,7 +245,7 @@ def train(json_opts):
           results[config_idx][split] = error_logger.get_errors(split)
 
         # Save the model parameters
-        if epoch % train_opts.save_epoch_freq == 0:
+        if epoch % train_opts['save_epoch_freq'] == 0:
           slack_logger.info('(Experiment %s) Saving model at epoch %04d, loss:%s',
                             experiment, epoch, _get_loss_msg(error_logger))
 
@@ -261,7 +261,7 @@ def train(json_opts):
 
       # Store the final model
       slack_logger.info('(Experiment %s) Pre-training finished!', experiment)
-      if epoch % train_opts.save_epoch_freq != 0:  # Only save when not done so already
+      if epoch % train_opts['save_epoch_freq'] != 0:  # Only save when not done so already
         model.save(epoch)
 
     if train_opts.get('swa', False):
