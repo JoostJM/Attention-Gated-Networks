@@ -241,7 +241,7 @@ class UnetUp3(nn.Module):
             self.up = nn.ConvTranspose3d(in_size, out_size, kernel_size=(4,4,1), stride=(2,2,1), padding=(1,1,0))
         else:
             self.conv = UnetConv3(in_size+out_size, out_size, is_batchnorm)
-            self.up = nn.Upsample(scale_factor=(2, 2, 1), mode='trilinear')
+            self.up = nn.Upsample(scale_factor=(2, 2, 1), mode='trilinear', align_corners=True)
 
         # initialise the blocks
         for m in self.children():
@@ -260,7 +260,7 @@ class UnetUp3_CT(nn.Module):
     def __init__(self, in_size, out_size, is_batchnorm=True):
         super(UnetUp3_CT, self).__init__()
         self.conv = UnetConv3(in_size + out_size, out_size, is_batchnorm, kernel_size=(3,3,3), padding_size=(1,1,1))
-        self.up = nn.Upsample(scale_factor=(2, 2, 2), mode='trilinear')
+        self.up = nn.Upsample(scale_factor=(2, 2, 2), mode='trilinear', align_corners=True)
 
         # initialise the blocks
         for m in self.children():
@@ -309,7 +309,7 @@ class UnetUp3_SqEx(nn.Module):
         else:
             self.sqex = SqEx(n_features=in_size+out_size)
             self.conv = UnetConv3(in_size+out_size, out_size, is_batchnorm)
-            self.up = nn.Upsample(scale_factor=(2, 2, 1), mode='trilinear')
+            self.up = nn.Upsample(scale_factor=(2, 2, 1), mode='trilinear', align_corners=True)
 
         # initialise the blocks
         for m in self.children():
@@ -429,7 +429,7 @@ class HookBasedFeatureExtractor(nn.Module):
         print('Output Array Size: ', self.outputs_size)
 
     def rescale_output_array(self, newsize):
-        us = nn.Upsample(size=newsize[2:], mode='bilinear')
+        us = nn.Upsample(size=newsize[2:], mode='bilinear', align_corners=True)
         if isinstance(self.outputs, list):
             for index in range(len(self.outputs)): self.outputs[index] = us(self.outputs[index]).data()
         else:
@@ -455,7 +455,7 @@ class UnetDsv3(nn.Module):
     def __init__(self, in_size, out_size, scale_factor):
         super(UnetDsv3, self).__init__()
         self.dsv = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size=1, stride=1, padding=0),
-                                 nn.Upsample(scale_factor=scale_factor, mode='trilinear'), )
+                                 nn.Upsample(scale_factor=scale_factor, mode='trilinear', align_corners=True), )
 
     def forward(self, input):
         return self.dsv(input)
