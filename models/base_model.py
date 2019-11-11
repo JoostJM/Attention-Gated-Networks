@@ -33,7 +33,8 @@ class BaseModel():
 
     self.config.update(model_opts)
 
-    self.use_cuda = self.config['gpu_ids'] is not None and len(self.config['gpu_ids']) > 0
+    gpu_ids = self.config['gpu_ids']
+    self.use_cuda = gpu_ids is not None and len(gpu_ids) > 0
     self.save_dir = os.path.join(model_opts['checkpoints_dir'], experiment)
     if not os.path.isdir(self.save_dir):
       os.makedirs(self.save_dir)
@@ -41,7 +42,6 @@ class BaseModel():
 
     self.net = get_network(**self.config)
     if self.use_cuda:
-      gpu_ids = self.config['gpu_ids']
       self.net = self.net.cuda(gpu_ids[0])
       if len(gpu_ids) > 1:
         self.net = torch.nn.DataParallel(self.net, gpu_ids, gpu_ids[0])
