@@ -89,9 +89,6 @@ def main(arguments):
             del by_batch[worker_batchSize]
             del batch_sizes[i]
 
-          slack_logger.info('Starting experiment for config %i (worker %i))',
-                      config_idx, len(workers))
-
           config_opts = deepcopy(json_opts)
 
           config_opts['experiment_name'] = experiment + '/' + str(config_idx)
@@ -104,6 +101,9 @@ def main(arguments):
 
           p = multiprocessing.Process(target=train, args=(config_opts,))
           p.start()
+          slack_logger.info('Starting experiment for config %i (worker %i@pid %s))',
+                            config_idx, len(workers), p.pid)
+
           workers.append((gpu, worker_batchSize, p, parent_results_pipe))
           slots_used[gpu] += worker_batchSize
 
