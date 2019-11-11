@@ -200,7 +200,7 @@ def train(json_opts):
         logger.info('(epoch: %d, total # iters: %d)' % (epoch, len(train_loader)))
 
         # Training Iterations
-        for epoch_iter, (images, labels) in tqdm(enumerate(train_loader, 1), total=len(train_loader)):
+        for epoch_iter, (images, labels) in enumerate(train_loader, 1):
           # Make a training update
           model.set_input(images, labels)
           model.optimize_parameters(epoch_iter, accumulate_iter)
@@ -217,7 +217,7 @@ def train(json_opts):
           model.optimizer.step()
 
         # Validation Iterations
-        for epoch_iter, (images, labels) in tqdm(enumerate(valid_loader, 1), total=len(valid_loader)):
+        for epoch_iter, (images, labels) in enumerate(valid_loader, 1):
           # Make a forward pass with the model
           if hasattr(torch, 'no_grad'):
             with torch.no_grad():
@@ -300,7 +300,7 @@ def train(json_opts):
         logger.info('SWA learning rate: %.7f', model.optimizer.param_groups[0]['lr'])
 
         # Training Iterations
-        for epoch_iter, (images, labels) in tqdm(enumerate(train_loader, 1), total=len(train_loader)):
+        for epoch_iter, (images, labels) in enumerate(train_loader, 1):
           # Make a training update
           model.set_input(images, labels)
           model.optimize_parameters(epoch_iter, accumulate_iter)
@@ -317,7 +317,7 @@ def train(json_opts):
           model.optimizer.step()
 
         # Validation Iterations
-        for epoch_iter, (images, labels) in tqdm(enumerate(valid_loader, 1), total=len(valid_loader)):
+        for epoch_iter, (images, labels) in enumerate(valid_loader, 1):
           # Make a forward pass with the model
           if hasattr(torch, 'no_grad'):
             with torch.no_grad():
