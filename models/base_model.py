@@ -133,12 +133,11 @@ class BaseModel():
 
   # update learning rate (called once every epoch)
   def update_learning_rate(self, metric=None, epoch=None):
-    for scheduler in self.schedulers:
-      if isinstance(scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
-        scheduler.step(metrics=metric)
-      else:
-        scheduler.step()
-      lr = self.optimizers[0].param_groups[0]['lr']
+    if isinstance(self.scheduler, torch.optim.lr_scheduler.ReduceLROnPlateau):
+      self.scheduler.step(metrics=metric)
+    else:
+      self.scheduler.step()
+    lr = self.optimizer.param_groups[0]['lr']
     self.logger.info('current learning rate = %.7f' % lr)
 
   # returns the number of trainable parameters
