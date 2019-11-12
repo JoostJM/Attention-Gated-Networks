@@ -47,7 +47,7 @@ class SlackHandler(logging.Handler):
     self.level_emojis = {
       'WARNING': ':anguished:',
       'ERROR': ':face_with_symbols_on_mouth:',
-      'CRITICAL': ':skull_and_bones:'
+      'CRITICAL': ':skull_and_crossbones:'
     }
 
     assert self.channel is not None, 'A valid slack channel to post log records to is required.'
@@ -65,7 +65,10 @@ class SlackHandler(logging.Handler):
     }
 
     if self.bot_name is not None:
-      data['username'] = self.bot_name
+      if '%(levelname)' in self.bot_name:
+        data['username'] = self.bot_name % {'levelname': record.levelname}
+      else:
+        data['username'] = self.bot_name
 
     try:
       self.do_request('chat.postMessage', self.api_key, data)
