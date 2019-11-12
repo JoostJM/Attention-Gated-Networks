@@ -100,6 +100,7 @@ def main(arguments):
             config_opts['model']['gpu_ids'] = [gpu]
 
           p = multiprocessing.Process(target=train, args=(config_opts,))
+          p.daemon = True
           p.start()
           slack_logger.info('Starting experiment for config %i (worker %i@pid %s))',
                             config_idx, len(workers), p.pid)
