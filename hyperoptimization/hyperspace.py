@@ -95,6 +95,10 @@ class HyperSpace:
 
     self.results = h_results.T
 
+    # Save the space
+    if rename_folders:
+      # Save the hyperspace to ensure that hyperspace.csv reflects the renamed folders (if any).
+      self.save_space()
 
   def add_result(self, result):
     if self.results is None:
