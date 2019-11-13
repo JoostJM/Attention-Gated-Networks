@@ -11,13 +11,13 @@ from utils import util, html
 
 class Visualiser():
     def __init__(self, opt, save_dir, filename='loss_log.txt'):
-        self.display_id = opt.display_id
-        self.use_html = not opt.no_html
-        self.win_size = opt.display_winsize
+        self.display_id = opt['display_id']
+        self.use_html = not opt['no_html']
+        self.win_size = opt['display_winsize']
         self.save_dir = save_dir
         self.name = os.path.basename(self.save_dir)
         self.saved = False
-        self.display_single_pane_ncols = opt.display_single_pane_ncols
+        self.display_single_pane_ncols = opt['display_single_pane_ncols']
         self.logger = logging.getLogger('visualizer')
 
         # Error plots
@@ -26,7 +26,7 @@ class Visualiser():
 
         if self.display_id > 0:
             import visdom
-            self.vis = visdom.Visdom(port=opt.display_port)
+            self.vis = visdom.Visdom(port=opt.get('display_port', 8097))
 
         if self.use_html:
             self.web_dir = os.path.join(self.save_dir, 'web')
