@@ -13,7 +13,7 @@ from utils.util import json_file_to_pyobj
 from utils.visualiser import Visualiser
 from utils.error_logger import ErrorLogger
 from models.networks_other import adjust_learning_rate
-from utils import _configure_logging
+from utils import configure_logging
 
 from models import get_model
 
@@ -100,7 +100,7 @@ def train(arguments):
     if not os.path.isdir(checkpoints_dir):
         os.makedirs(checkpoints_dir)
     log_file = os.path.join(checkpoints_dir, experiment + '.log')
-    _configure_logging(logging.INFO, arguments.slack, log_file)
+    configure_logging(logging.INFO, arguments.slack, log_file)
     logger = logging.getLogger()
     slack_logger = logging.getLogger('slack')
 

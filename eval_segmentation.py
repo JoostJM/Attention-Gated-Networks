@@ -1,5 +1,6 @@
 import logging
 import numpy as np
+import json
 import os
 
 import SimpleITK as sitk
@@ -8,12 +9,11 @@ from torch.utils.data import DataLoader
 import torchsample.transforms as ts
 from tqdm import tqdm
 
-from dataio.loader import get_dataset, get_dataset_path
-from utils.util import json_file_to_pyobj
+from dataio.loader import get_dataset
 from models import get_model
 from utils.metrics import dice_score, distance_metric, precision_and_recall
 from utils.error_logger import StatLogger
-from utils import _configure_logging
+from utils import configure_logging
 
 
 logger = logging.getLogger()
@@ -25,14 +25,19 @@ def main(arguments):
   json_filename = arguments.config
 
   # Load options
-  json_opts = json_file_to_pyobj(json_filename)
+  with open(json_filename) as j_fs:
+    json_opts = json.load(j_fs)
+
+  model_opts = json_opts['model']
+
+  experiment = json_opts['experiment_name']
 
   # Set up Logging
-  log_file = os.path.join(json_opts.model.checkpoints_dir, json_opts.model.experiment_name + '.log')
-  _configure_logging(logging.INFO, False, log_file)
+  log_file = os.path.join(model_opts['checkpoints_dir'], experiment + '.log')
+  configure_logging(logging.INFO, slack=False, log_file=log_file)
 
   # Setup the NN Model
-  model = get_model(json_opts.model)
+  model = get_model(experiment, **model_opts)
 
   eval(model, json_opts)
 
@@ -40,26 +45,16 @@ def main(arguments):
 def eval(model, opts, label_dir='label_pred'):
   global logger
 
+  data_opts = opts['data']
+
   logger.info('Evaluating model')
 
   if isinstance(model, torch.nn.DataParallel):
     logger.warning('model is in DataParallel mode, but for evaluation batch size will be one. Getting root model.')
     model = model.module
 
-  # Architecture type
-  arch_type = opts.training.arch_type
-
   # Setup Dataset and Augmentation
-  ds_class = get_dataset(arch_type)
-  ds_path = get_dataset_path(arch_type, opts.data_path)
-  ds_transform = ts.Compose([ts.PadFactorSimpleITK(factor=opts.model.division_factor),
-                             ts.NormalizeSimpleITK(norm_flag=[True, False]),
-                             ts.SimpleITKtoTensor(),
-                             ts.ChannelsFirst(),
-                             ts.TypeCast(['float', 'long'])
-                             ])
-
-  test_dataset = ds_class(ds_path, split='test', transform=ds_transform)
+  test_dataset = get_dataset(['test'], **data_opts)['test']
   test_loader = DataLoader(dataset=test_dataset, num_workers=4, batch_size=1, shuffle=False)
 
   # Setup output directory

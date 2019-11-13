@@ -1,7 +1,7 @@
 import logging.config
 
 
-def _configure_logging(log_level, slack=True, log_file=None):
+def configure_logging(log_level, slack=True, log_file=None):
   log_config = {
     'version': 1,
     'disable_existing_loggers': False,
