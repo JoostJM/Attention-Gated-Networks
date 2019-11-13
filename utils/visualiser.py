@@ -10,12 +10,12 @@ from utils import util, html
 # python -m visdom.server
 
 class Visualiser():
-    def __init__(self, opt, save_dir, filename='loss_log.txt'):
+    def __init__(self, experiment, opt, save_dir, filename='loss_log.txt'):
         self.display_id = opt['display_id']
         self.use_html = not opt['no_html']
         self.win_size = opt['display_winsize']
         self.save_dir = save_dir
-        self.name = os.path.basename(self.save_dir)
+        self.experiment = experiment
         self.saved = False
         self.display_single_pane_ncols = opt['display_single_pane_ncols']
         self.logger = logging.getLogger('visualizer')
@@ -26,8 +26,8 @@ class Visualiser():
 
         if self.display_id > 0:
             import visdom
-            self.vis = visdom.Visdom(port=opt.get('display_port', 8097))
-
+            self.vis = visdom.Visdom(port=opt.get('display_port', 8097),
+                                     env=self.experiment.replace('/', '_'))
         if self.use_html:
             self.web_dir = os.path.join(self.save_dir, 'web')
             self.img_dir = os.path.join(self.web_dir, 'images')
@@ -51,10 +51,8 @@ class Visualiser():
                         table {border-collapse: separate; border-spacing:4px; white-space:nowrap; text-align:center}
                         table td {width: %dpx; height: %dpx; padding: 4px; outline: 4px solid black}
                         </style>""" % (w, h)
-                title = self.name
                 label_html = ''
                 label_html_row = ''
-                nrows = int(np.ceil(len(visuals.items()) / ncols))
                 images = []
                 idx = 0
                 for label, image_numpy in visuals.items():
@@ -73,10 +71,10 @@ class Visualiser():
                     label_html += '<tr>%s</tr>' % label_html_row
                 # pane col = image row
                 self.vis.images(images, nrow=ncols, win=self.display_id + 1,
-                                padding=2, opts=dict(title=title + ' images'))
+                                padding=2, opts=dict(title='results images'))
                 label_html = '<table>%s</table>' % label_html
                 self.vis.text(table_css + label_html, win=self.display_id + 2,
-                              opts=dict(title=title + ' labels'))
+                              opts=dict(title='results labels'))
             else:
                 idx = 1
                 for label, image_numpy in visuals.items():
@@ -90,7 +88,7 @@ class Visualiser():
                 img_path = os.path.join(self.img_dir, 'epoch%.3d_%s.png' % (epoch, label))
                 util.save_image(image_numpy, img_path)
             # update website
-            webpage = html.HTML(self.web_dir, 'Experiment name = %s' % self.name, reflesh=1)
+            webpage = html.HTML(self.web_dir, 'Experiment name = %s' % self.experiment, reflesh=1)
             for n in range(epoch, 0, -1):
                 webpage.add_header('epoch [%d]' % n)
                 ims = []
@@ -117,7 +115,7 @@ class Visualiser():
         table_html = table.round(2).to_html(col_space=200, bold_rows=True, border=12)
 
         self.error_plots[key_s] = self.vis.text(table_html,
-                                                opts=dict(title=self.name+split_name,
+                                                opts=dict(title=split_name,
                                                           width=350, height=350,
                                                           win=self.error_wins[key_s]))
 
@@ -132,18 +130,18 @@ class Visualiser():
             opts=dict(
                 columnnames=kwargs['labels'],
                 rownames=kwargs['labels'],
-                title=self.name + ' confusion matrix',
+                title='confusion matrix %s' % key_s,
                 win=self.error_wins[key_s]))
 
     def plot_line(self, x, y, key, split_name):
-        if key not in self.error_plots:
+        if key not in self.error_plots or not self.vis.win_exists(self.error_plots[key]):
             self.error_wins[key] = self.display_id * 3 + len(self.error_wins)
             self.error_plots[key] = self.vis.line(
                 X=np.array([x, x]),
                 Y=np.array([y, y]),
                 opts=dict(
                     legend=[split_name],
-                    title=self.name + ' {} over time'.format(key),
+                    title=key,
                     xlabel='Epochs',
                     ylabel=key,
                     win=self.error_wins[key]
