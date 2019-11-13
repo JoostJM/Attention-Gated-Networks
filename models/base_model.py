@@ -1,5 +1,6 @@
 import logging
 import os
+import re
 import numpy
 import torch
 from .networks_other import get_n_parameters, get_scheduler
@@ -38,6 +39,12 @@ class BaseModel():
     self.save_dir = os.path.join(model_opts['checkpoints_dir'], experiment)
     if not os.path.isdir(self.save_dir):
       os.makedirs(self.save_dir)
+    elif self.config['isTrain'] and not self.config['continue_train']:
+      mod_pattern = re.compile(r'(?P<epoch>\d{4})_net_\w.pth')
+      epochs = [int(mod_pattern.fullmatch(m).groupdict()['epoch'])
+                for m in os.listdir(self.save_dir) if mod_pattern.fullmatch(m)]
+      self.config['continue_train'] = True
+      self.config['which_epoch'] = max(epochs)
     self.logger = logging.getLogger(str(self.__module__))
 
     self.net = get_network(**self.config)
@@ -56,8 +63,10 @@ class BaseModel():
     else:
       self.which_epoch = int(0)
 
-    self.logger.info('Network %s initialized:\n%s\nTotal Number of parameters %i',
-                     self.config['architecture'], str(self.net), get_n_parameters(self.net))
+    self.logger.info('Network %s initialized:\n%sTotal Number of parameters %i',
+                     self.config['architecture'],
+                     str(self.net) + '\n' if self.config.get('print_network', True) else '',
+                     get_n_parameters(self.net))
 
   def name(self):
     return 'BaseModel'

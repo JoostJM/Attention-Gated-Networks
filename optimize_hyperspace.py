@@ -182,6 +182,7 @@ def train(json_opts):
     logger.warning('Failed to enable CuDNN benchmark', exc_info=True)
 
   # Setup the NN Model
+  model_opts['print_netork'] = False
   model = get_model(experiment, **model_opts)
 
   # Setup Data and Augmentation
