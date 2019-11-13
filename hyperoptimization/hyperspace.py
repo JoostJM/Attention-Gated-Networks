@@ -86,8 +86,9 @@ class HyperSpace:
       for m in renames:
         new_fldr = index_map.get(int(m), None)
         if new_fldr is not None and new_fldr != int(m):
-          self.logger.info('Renaming folder %s to %i', m, new_fldr)
-          os.rename(os.path.join(self.out_dir, m) + '_', os.path.join(self.out_dir, str(new_fldr)))
+          new_fldr = '%.3i' % new_fldr
+          self.logger.info('Renaming folder %s to %s', m, new_fldr)
+          os.rename(os.path.join(self.out_dir, m) + '_', os.path.join(self.out_dir, new_fldr))
 
     self.results = h_results.T
 

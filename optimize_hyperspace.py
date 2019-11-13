@@ -97,7 +97,7 @@ def main(arguments):
 
           config_opts = deepcopy(json_opts)
 
-          config_opts['experiment_name'] = experiment + '/' + str(config_idx)
+          config_opts['experiment_name'] = experiment + '/%.3i' % config_idx
 
           config_opts['training'] = deep_update(config_opts['training'], config)
           config_opts['log_config'] = log_config
