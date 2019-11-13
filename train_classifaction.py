@@ -154,7 +154,7 @@ def train(arguments):
                               batch_size=batchSize, shuffle=True)
 
     # Visualisation Parameters
-    visualizer = Visualiser(json_opts['visualisation'], save_dir=model.save_dir)
+    visualizer = Visualiser(experiment, json_opts['visualisation'], save_dir=model.save_dir)
     error_logger = ErrorLogger()
 
     # Training Function

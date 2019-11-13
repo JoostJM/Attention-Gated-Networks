@@ -66,7 +66,7 @@ def train(arguments):
   valid_loader = DataLoader(dataset=datasets['validation'], num_workers=4, batch_size=batchSize, shuffle=False)
 
   # Visualisation Parameters
-  visualizer = Visualiser(json_opts['visualisation'], save_dir=model.save_dir)
+  visualizer = Visualiser(experiment, json_opts['visualisation'], save_dir=model.save_dir)
   error_logger = ErrorLogger()
 
   # Training Function
