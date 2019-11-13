@@ -77,6 +77,9 @@ class HyperSpace:
       renames = []
       for m in h_maps:
         if index_map.get(int(m), None) == int(m):
+          if m != '%.3i' % int(m):
+            # Apply 0-padded formatting!
+            os.rename(os.path.join(self.out_dir, m), os.path.join(self.out_dir, '%.3i' % int(m)))
           continue  # no renaming needed
 
         renames.append(m)
