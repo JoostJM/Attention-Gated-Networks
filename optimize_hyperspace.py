@@ -46,16 +46,22 @@ def main(arguments):
   if not os.path.isdir(out_dir):
     os.makedirs(out_dir)
   log_file = os.path.join(out_dir, experiment + '.log')
-  log_config, log_listener = configure_logging(logging.INFO, slack=arguments.slack, log_file=log_file, thread_safe=True)
+  log_config, log_listener = configure_logging(logging.INFO, slack=arguments.slack, log_file=log_file) #, thread_safe=True)
   logger = logging.getLogger()
   slack_logger = logging.getLogger('slack')
 
   try:
-    hyperspace = HyperSpace(json_opts['hyperspace'])
-    hyperspace.save_space(os.path.join(out_dir, 'hyperspace.csv'))
+    hyperspace = HyperSpace(json_opts['hyperspace'], out_dir)
+    if os.path.isfile(hyperspace.fname):
+      try:
+        hyperspace.load_results()
+      except:
+        logger.warning('Unable to load hyperspace results from file %s!', hyperspace.fname, exc_info=True)
+
+    hyperspace.save_space()
 
     by_batch = {}
-    for h_idx, h in hyperspace.hyperspace.iterrows():
+    for h_idx, h in hyperspace:
       b = h.get('batchSize', batchSize)
       if b not in by_batch:
         by_batch[b] = Queue(-1)
@@ -123,7 +129,7 @@ def main(arguments):
         # Store the results in the hyperspace
         if results_pipe.poll(3):
           hyperspace.add_result(results_pipe.recv())
-          hyperspace.save_space(os.path.join(out_dir, 'hyperspace.csv'))
+          hyperspace.save_space()
 
         # Remove the worker from the list
         results_pipe.close()

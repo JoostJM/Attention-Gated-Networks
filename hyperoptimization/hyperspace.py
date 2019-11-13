@@ -1,18 +1,96 @@
+import logging
+import os
+import re
+
+import numpy as np
 import pandas as pd
 import six
 
+
 class HyperSpace:
-  def __init__(self, hyperspace):
+  def __init__(self, hyperspace, out_dir):
+    self.logger = logging.getLogger('hyperspace')
     hyperspace_enum = self._enumerate_hyperspace(hyperspace)
     self.hyperspace = pd.DataFrame(data=hyperspace_enum)
     self.hyperspace.index = pd.Index(range(1, self.hyperspace.shape[0] + 1))
     self.results = None
+    self.out_dir = out_dir
+    self.fname = os.path.join(out_dir, 'hyperspace.csv')
 
-  def save_space(self, fname):
+  def __iter__(self):
+    if self.results is not None:
+      return self.hyperspace.loc[self.hyperspace.index.difference(self.results.columns), :].iterrows()
+    else:
+      return self.hyperspace.iterrows()
+
+  def __len__(self):
+    if self.results is not None:
+      return len(self.hyperspace.index.difference(self.results.columns))
+    else:
+      return self.hyperspace.shape[0]
+
+  def save_space(self):
     hyperspace = self.hyperspace
     if self.results is not None:
       hyperspace = hyperspace.join(self.results.T)
-    hyperspace.to_csv(fname)
+    hyperspace.to_csv(self.fname)
+
+  def load_results(self, rename_folders=True):
+    self.logger.info('Loading results from %s', self.fname)
+
+    h_file = pd.read_csv(self.fname, index_col=0)
+
+    # Check that all parameter columns in current hyperspace also exist in saved hyperspace
+    assert len(self.hyperspace.columns.difference(h_file.columns)) == 0, "Defined parameters don't match"
+
+    # Check that all other columns in saved hyperspace are results columns (start with train/validation/test)
+    col_pattern = re.compile(r'(train)|(validation)|(test)')
+    assert np.all([col_pattern.match(c) is not None for c in h_file.columns.difference(self.hyperspace.columns)]), \
+        'Saved hyperspace contains more parameter columns than current hyperspace!'
+
+    # If the configuration file was changed, indices may not match up.
+    # Therefore, match on the hyperspace itself by setting the hyperspace as index
+    h_indices = pd.Series(h_file.index)
+
+    h_file[self.hyperspace.columns] = h_file[self.hyperspace.columns].applymap(str)
+    h_file = h_file.set_index(list(self.hyperspace.columns))
+
+    h_indices.index = h_file.index
+    h_indices.name = 'old_idx'
+
+    current_str_params = self.hyperspace.applymap(str)
+    current_str_params = current_str_params.set_index(list(current_str_params.columns))
+    current_str_params['current_idx'] = self.hyperspace.index
+
+    # Only retain results for which hyperspaces have been defined
+    h_results = h_file.join(current_str_params, how='inner')
+    h_results = h_results.set_index('current_idx')
+    # Drop hyperspaces without a result
+    h_results = h_results[h_results.notnull().all(axis=1)]
+
+    if rename_folders:
+      index_map = current_str_params.join(h_indices, how='inner')
+      index_map = index_map.set_index('old_idx')['current_idx']
+      h_map_pattern = re.compile(r'\d+')
+
+      h_maps = [f for f in os.listdir(self.out_dir) if h_map_pattern.fullmatch(f)]
+      renames = []
+      for m in h_maps:
+        if index_map.get(int(m), None) == int(m):
+          continue  # no renaming needed
+
+        renames.append(m)
+        fldr = os.path.join(self.out_dir, m)
+        os.rename(fldr, fldr + '_')
+
+      for m in renames:
+        new_fldr = index_map.get(int(m), None)
+        if new_fldr is not None and new_fldr != int(m):
+          self.logger.info('Renaming folder %s to %i', m, new_fldr)
+          os.rename(os.path.join(self.out_dir, m) + '_', os.path.join(self.out_dir, str(new_fldr)))
+
+    self.results = h_results.T
+
 
   def add_result(self, result):
     if self.results is None:
