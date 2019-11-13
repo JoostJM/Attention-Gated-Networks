@@ -50,6 +50,7 @@ def main(arguments):
   logger = logging.getLogger()
   slack_logger = logging.getLogger('slack')
 
+  workers = []
   try:
     hyperspace = HyperSpace(json_opts['hyperspace'], out_dir)
     if os.path.isfile(hyperspace.fname):
@@ -74,7 +75,6 @@ def main(arguments):
     else:
       slots_used = {gpu: 0 for gpu in gpu_ids}
 
-    workers = []
     while len(by_batch) > 0:
       for gpu in slots_used:
         while slots_used[gpu] < maxBatchSize:
@@ -106,7 +106,8 @@ def main(arguments):
             config_opts['model']['gpu_ids'] = [gpu]
 
           p = multiprocessing.Process(target=train, args=(config_opts,))
-          p.daemon = True
+          # Do not set p.daemon = True, as it needs to spawn child processes,
+          # which is not allowed for daemonic processes
           p.start()
           slack_logger.info('Starting experiment for config %i (worker %i@pid %s))',
                             config_idx, len(workers), p.pid)
@@ -140,6 +141,10 @@ def main(arguments):
   except Exception:
     slack_logger.critical('(Experiment %s) Oh No! Hyperspace enumeration failed!!', experiment, exc_info=True)
   finally:
+    for w in workers:
+      if w[2].is_alive():
+        w[2].terminate()
+      w[2].join()
     if log_listener is not None:
       log_listener.stop()
 
