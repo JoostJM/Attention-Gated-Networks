@@ -72,7 +72,7 @@ def eval(model, opts, label_dir='label_pred', force=False):
     im_path = test_dataset.image_filenames[iteration - 1]
     label_path = test_dataset.target_filenames[iteration - 1]
 
-    dest_file = os.path.join(out_dir, os.path.splitext(os.path.basename(im_path)[0]) + '_label_pred.nrrd')
+    dest_file = os.path.join(out_dir, os.path.splitext(os.path.basename(im_path))[0]) + '_label_pred.nrrd'
     if force or not os.path.isfile(dest_file):
       try:
         pred_seg = make_segmentation(model, image, label, stat_logger, im_path, label_path)
@@ -101,7 +101,7 @@ def eval(model, opts, label_dir='label_pred', force=False):
       image, label = test_dataset[iteration - 1]
       im_path = test_dataset.image_filenames[iteration - 1]
       label_path = test_dataset.target_filenames[iteration - 1]
-      dest_file = os.path.join(out_dir, os.path.splitext(os.path.basename(im_path)[0]) + '_label_pred.nrrd')
+      dest_file = os.path.join(out_dir, os.path.splitext(os.path.basename(im_path))[0] + '_label_pred.nrrd')
       pred_seg = make_segmentation(model, image, label, stat_logger, im_path, label_path)
 
       sitk.WriteImage(pred_seg, dest_file, True)
