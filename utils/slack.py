@@ -83,8 +83,8 @@ class SlackHandler(logging.Handler):
       cls._start = now
       cls._requests = 0
     elif cls._requests >= 20:
-      print('Slack handler sleeping for 20s to prevent "Too-Many-Requests" HTTP exception')
-      time.sleep(20 - (now - cls._start).seconds)
+      print('Slack handler sleeping until 25s to prevent "Too-Many-Requests" HTTP exception')
+      time.sleep(25 - (now - cls._start).seconds)
       cls._requests = 0
 
     cls._requests += 1
@@ -137,6 +137,10 @@ class SlackHandler(logging.Handler):
 
   @classmethod
   def cleanup_channel(cls, api_token, channel_id, sender, date_threshold=None, text_regex=None, max_deletions=None):
+    sender_pattern = None
+    if sender is not None:
+      sender_pattern = re.compile(sender)
+
     pattern = None
     if text_regex is not None:
       pattern = re.compile(text_regex)
@@ -163,9 +167,9 @@ class SlackHandler(logging.Handler):
         if len(msg_batch['messages']) == 0:
           break
         for m in msg_batch['messages']:
-          if m.get('username', None) != sender:
+          if sender_pattern is not None and sender_pattern.search(m.get('username', '')) is None:
             continue  # Skip deleting messages not coming from the specified user
-          if pattern is not None and 'text' in m and pattern.search(m['text']) is None:
+          if pattern is not None and pattern.search(m.get('text', '')) is None:
             print('Pattern not matched')
             continue
           deletions += 1
@@ -199,6 +203,6 @@ class SlackHandler(logging.Handler):
 if __name__ == '__main__':
   api = os.environ['SLACK_API_TOKEN']
   channel_id = SlackHandler.get_channel(api)
-  text_regex = None
-  th = datetime.datetime.now().date()
+  text_regex = None #'h0_unet-att_1x1x3-adc'
+  th = datetime.datetime.now() # .date()
   SlackHandler.cleanup_channel(api, channel_id, 'Attention-Gated-Networks', th, text_regex)
