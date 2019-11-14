@@ -55,6 +55,12 @@ def eval(model, opts, label_dir='label_pred', force=False):
 
   # Setup Dataset and Augmentation
   test_dataset = get_dataset(['test'], **data_opts)['test']
+  test_dataset.transform = ts.Compose([ts.PadFactorSimpleITK(factor=model.config['division_factor']),
+                                       ts.NormalizeSimpleITK(norm_flag=[True, False]),
+                                       ts.SimpleITKtoTensor(),
+                                       ts.ChannelsFirst(),
+                                       ts.TypeCast(['float', 'long'])
+                                       ])
   test_loader = DataLoader(dataset=test_dataset, num_workers=4, batch_size=1, shuffle=False)
 
   # Setup output directory
@@ -79,9 +85,11 @@ def eval(model, opts, label_dir='label_pred', force=False):
 
         sitk.WriteImage(pred_seg, dest_file, True)
       except RuntimeError as e:
-        if str(e).startswith('cuda runtime error (2)'):  # out of memory
+        if str(e).lower().startswith('cuda runtime error (2)') or \
+           str(e).lower() == 'cuda error: out of memory':  # out of memory
           logger.warning('Ran out of GPU memory for case %i! Will retry on cpu later...', iteration)
           oom_iters.append(iteration)
+          torch.cuda.empty_cache()
         else:
           raise
 
@@ -99,6 +107,8 @@ def eval(model, opts, label_dir='label_pred', force=False):
 
     for iteration in oom_iters:
       image, label = test_dataset[iteration - 1]
+      image = image.expand(1, *image.size())
+      label = label.expand(1, *label.size())
       im_path = test_dataset.image_filenames[iteration - 1]
       label_path = test_dataset.target_filenames[iteration - 1]
       dest_file = os.path.join(out_dir, os.path.splitext(os.path.basename(im_path))[0] + '_label_pred.nrrd')
