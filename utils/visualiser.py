@@ -1,13 +1,17 @@
 import numpy as np
 import pandas as pd
+from copy import deepcopy
+import json
 import logging
 import os
+import re
 import ntpath
 import time
 from utils import util, html
 
 # Use the following comment to launch a visdom server
 # python -m visdom.server
+
 
 class Visualiser():
     def __init__(self, experiment, opt, save_dir, filename='loss_log.txt'):
@@ -22,12 +26,12 @@ class Visualiser():
 
         # Error plots
         self.error_plots = dict()
-        self.error_wins = dict()
 
         if self.display_id > 0:
             import visdom
             self.vis = visdom.Visdom(port=opt.get('display_port', 8097),
                                      env=self.experiment.replace('/', '_'))
+            self.error_plots = self.enumerate_windows()
         if self.use_html:
             self.web_dir = os.path.join(self.save_dir, 'web')
             self.img_dir = os.path.join(self.web_dir, 'images')
@@ -40,6 +44,84 @@ class Visualiser():
 
     def reset(self):
         self.saved = False
+
+    def enumerate_windows(self, env=None):
+        if env is None:
+            env = self.experiment.replace('/', '_')
+
+        if env not in self.vis.get_env_list():
+            return {}
+
+        windows = json.loads(self.vis.get_window_data(env=env))
+        window_dict = {}
+        for w in windows.values():
+            title = w.get('title', None)
+            if title is None:
+                continue
+            window_dict[title] = w['id']
+        return window_dict
+
+    def replay_log_file(self, log_file, experiment):
+        env = experiment.replace('/', '_')
+        sessions = self._load_log_file(log_file)
+
+        if len(sessions) > 0:
+            sess_name, loss_list = sessions[-1]
+            self.logger.info('plotting session %s', sess_name)
+            windows = self.enumerate_windows(env)
+            for key in loss_list:
+                for split in loss_list[key]:
+                    data = np.array(loss_list[key][split])
+
+                    if key not in windows:
+                        windows[key] = self.vis.line(X=data[:, 0], Y=data[:, 1], env=env, opts=dict(
+                            legend=[split],
+                            title=key,
+                            xlabel='Epochs',
+                            ylabel=key
+                        ))
+                    else:
+                        self.vis.line(X=data[:, 0], Y=data[:, 1],
+                                      win=windows[key], name=split, env=env, update='replace')
+
+    @staticmethod
+    def _load_log_file(log_file):
+        pattern = re.compile(r'\(epoch: (?P<epoch>\d+), split: (?P<split>\w+)\)(?P<loss>( \w+_\w+: (\d+\.)?\d+)+)')
+        loss_pattern = re.compile(r'(?P<key>\w+_\w+): (?P<loss>(\d+\.)?\d+)')
+        with open(log_file) as log_fs:
+            log = log_fs.read()
+
+        loss_list = {}
+        sessions = []
+        session = None
+        for l in log.split('\n'):
+            match = pattern.match(l)
+            if match:
+                grps = match.groupdict()
+
+                epoch = int(grps['epoch'])
+                split = grps['split']
+                loss = grps['loss'].strip()
+
+                for l in loss_pattern.finditer(loss):
+                    l_grps = l.groupdict()
+                    k, v = l_grps['key'].strip(), float(l_grps['loss'])
+
+                    if k not in loss_list:
+                        loss_list[k] = {}
+                    if split not in loss_list[k]:
+                        loss_list[k][split] = []
+
+                    loss_list[k][split].append((epoch, v))
+            elif l.startswith('================'):
+                if session is not None:
+                    sessions.append((session, deepcopy(loss_list)))
+                    loss_list = {}
+                session = l.strip('=').strip()
+
+        if session is not None:
+            sessions.append((session, loss_list))
+        return sessions
 
     # |visuals|: dictionary of images to display or save
     def display_current_results(self, visuals, epoch, save_result):
@@ -105,9 +187,7 @@ class Visualiser():
 
     def plot_table_html(self, x, y, key, split_name, **kwargs):
         key_s = key+'_'+split_name
-        if key_s not in self.error_plots:
-            self.error_wins[key_s] = self.display_id * 3 + len(self.error_wins)
-        else:
+        if key_s in self.error_plots:
             self.vis.close(self.error_plots[key_s])
 
         table = pd.DataFrame(np.array(y['data']).transpose(),
@@ -115,27 +195,22 @@ class Visualiser():
         table_html = table.round(2).to_html(col_space=200, bold_rows=True, border=12)
 
         self.error_plots[key_s] = self.vis.text(table_html,
-                                                opts=dict(title=split_name,
-                                                          width=350, height=350,
-                                                          win=self.error_wins[key_s]))
+                                                opts=dict(title=key_s,
+                                                          width=350, height=350))
 
     def plot_heatmap(self, x, y, key, split_name, **kwargs):
         key_s = key+'_'+split_name
-        if key_s not in self.error_plots:
-            self.error_wins[key_s] = self.display_id * 3 + len(self.error_wins)
-        else:
+        if key_s in self.error_plots:
             self.vis.close(self.error_plots[key_s])
         self.error_plots[key_s] = self.vis.heatmap(
             X=y,
             opts=dict(
                 columnnames=kwargs['labels'],
                 rownames=kwargs['labels'],
-                title='confusion matrix %s' % key_s,
-                win=self.error_wins[key_s]))
+                title=key_s))
 
     def plot_line(self, x, y, key, split_name):
         if key not in self.error_plots or not self.vis.win_exists(self.error_plots[key]):
-            self.error_wins[key] = self.display_id * 3 + len(self.error_wins)
             self.error_plots[key] = self.vis.line(
                 X=np.array([x, x]),
                 Y=np.array([y, y]),
@@ -143,8 +218,7 @@ class Visualiser():
                     legend=[split_name],
                     title=key,
                     xlabel='Epochs',
-                    ylabel=key,
-                    win=self.error_wins[key]
+                    ylabel=key
             ))
         else:
             self.vis.line(X=np.array([x]), Y=np.array([y]), win=self.error_plots[key], name=split_name, update='append')
