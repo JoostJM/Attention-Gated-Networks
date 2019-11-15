@@ -50,6 +50,7 @@ def main(arguments):
   log_config, log_listener = configure_logging(logging.INFO, slack=arguments.slack, log_file=log_file) #, thread_safe=True)
   logger = logging.getLogger()
   slack_logger = logging.getLogger('slack')
+  slack_logger.info('Starting hyperspace enumeration@pid %s', multiprocessing.current_process().pid)
 
   workers = []
   try:
@@ -189,7 +190,7 @@ def train(json_opts):
     logger.warning('Failed to enable CuDNN benchmark', exc_info=True)
 
   # Setup the NN Model
-  model_opts['print_netork'] = False
+  model_opts['print_network'] = False
   model = get_model(experiment, **model_opts)
 
   # Setup Data and Augmentation
