@@ -150,8 +150,9 @@ class HyperSpace:
     return enum(hyperspace)
 
   @staticmethod
-  def compute_batch_size(batchSize, maxBatchSize):
+  def compute_batch_size(batchSize, maxBatchSize, accumulate_iter=1):
     assert maxBatchSize >= 1, 'maxBatchSize cannot be smaller than 1'
+    batchSize = batchSize * accumulate_iter
     accumulate_iter = 1
     if batchSize > maxBatchSize:
       b_i = batchSize / accumulate_iter

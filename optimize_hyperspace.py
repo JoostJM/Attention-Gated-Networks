@@ -36,9 +36,10 @@ def main(arguments):
   experiment = json_opts['experiment_name']
   model_opts = json_opts['model']
   batchSize = json_opts['training'].get('batchSize', 1)
+  accumulate_iter = json_opts['training'].get('accumulate_iter', 1)
   maxBatchSize = json_opts['hyperspace']['maxBatchSize']
 
-  json_opts['training'].update(HyperSpace.compute_batch_size(batchSize, maxBatchSize))
+  json_opts['training'].update(HyperSpace.compute_batch_size(batchSize, maxBatchSize, accumulate_iter))
 
   out_dir = os.path.join(model_opts['checkpoints_dir'], experiment)
 
@@ -80,20 +81,26 @@ def main(arguments):
         while slots_used[gpu] < maxBatchSize:
           slot_space = maxBatchSize - slots_used[gpu]
           i = 0
-          while i < len(batch_sizes) and batch_sizes[i] > slot_space:
+          while i < len(batch_sizes) - 1 and batch_sizes[i] > slot_space:
             i += 1
 
-          if i == len(batch_sizes):
-            # No batch sizes left that would fit in the remaining space...
-            break
-
           worker_batchSize = batch_sizes[i]
-          parent_results_pipe, child_results_pipe = multiprocessing.Pipe()
-
           config_idx, config = by_batch[worker_batchSize].get()
+
           if by_batch[worker_batchSize].empty():
             del by_batch[worker_batchSize]
             del batch_sizes[i]
+
+          if worker_batchSize > slot_space:
+            # Final (smallest) batch size is still too large
+            # So recompute it to make it fit!
+            logger.debug('Recomputing batchSize and accumulate_iter')
+            b = config.get('batchSize', batchSize)
+            a_i = config.get('accumulate_iter', accumulate_iter)
+            config.update(hyperspace.compute_batch_size(b, slot_space, a_i))
+            worker_batchSize = config['batchSize']
+
+          parent_results_pipe, child_results_pipe = multiprocessing.Pipe()
 
           config_opts = deepcopy(json_opts)
 
