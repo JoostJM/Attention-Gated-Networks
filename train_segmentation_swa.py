@@ -250,9 +250,9 @@ def train(arguments):
 
     if arguments.eval:
       import eval_segmentation
-      eval_segmentation.eval(model, json_opts)
+      eval_segmentation.evaluate(model, json_opts)
       if train_opts.get('swa', False):
-        eval_segmentation.eval(swa_model, json_opts, 'label_pred_swa')
+        eval_segmentation.evaluate(swa_model, json_opts, 'label_pred_swa')
   except Exception:
     slack_logger.critical('(Experiment %s) Oh No! Training failed!!', experiment, exc_info=True)
 
