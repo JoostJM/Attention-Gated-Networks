@@ -43,8 +43,9 @@ class BaseModel():
       mod_pattern = re.compile(r'(?P<epoch>\d{4})_net_\w.pth')
       epochs = [int(mod_pattern.fullmatch(m).groupdict()['epoch'])
                 for m in os.listdir(self.save_dir) if mod_pattern.fullmatch(m)]
-      self.config['continue_train'] = True
-      self.config['which_epoch'] = max(epochs)
+      if len(epochs) > 0:
+        self.config['continue_train'] = True
+        self.config['which_epoch'] = max(epochs)
     self.logger = logging.getLogger(str(self.__module__))
 
     self.net = get_network(**self.config)
