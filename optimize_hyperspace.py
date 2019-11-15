@@ -47,7 +47,7 @@ def main(arguments):
   if not os.path.isdir(out_dir):
     os.makedirs(out_dir)
   log_file = os.path.join(out_dir, experiment + '.log')
-  log_config, log_listener = configure_logging(logging.INFO, slack=arguments.slack, log_file=log_file) #, thread_safe=True)
+  log_config, log_listener = configure_logging(logging.INFO, slack=arguments.slack, log_file=log_file, thread_safe=True)
   logger = logging.getLogger()
   slack_logger = logging.getLogger('slack')
   slack_logger.info('Starting hyperspace enumeration@pid %s', multiprocessing.current_process().pid)
@@ -98,7 +98,7 @@ def main(arguments):
             logger.debug('Recomputing batchSize and accumulate_iter')
             b = config.get('batchSize', batchSize)
             a_i = config.get('accumulate_iter', accumulate_iter)
-            config.update(hyperspace.compute_batch_size(b, slot_space, a_i))
+            config = deep_update(config, hyperspace.compute_batch_size(b, slot_space, a_i))
             worker_batchSize = config['batchSize']
 
           parent_results_pipe, child_results_pipe = multiprocessing.Pipe()
