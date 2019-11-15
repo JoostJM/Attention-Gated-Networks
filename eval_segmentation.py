@@ -28,7 +28,13 @@ def main(arguments):
   with open(json_filename) as j_fs:
     json_opts = json.load(j_fs)
 
+  label_dir = json_opts.get('label_dir', 'label_pred')
+
   model_opts = json_opts['model']
+
+  # Ensure options specify we want to evaluate a trained model
+  model_opts['isTrain'] = False
+  model_opts['continue_train'] = False
 
   experiment = json_opts['experiment_name']
 
@@ -39,10 +45,10 @@ def main(arguments):
   # Setup the NN Model
   model = get_model(experiment, **model_opts)
 
-  eval(model, json_opts, force=arguments.force)
+  evaluate(model, json_opts, label_dir=label_dir, force=arguments.force, retry_oom=arguments.retry_oom)
 
 
-def eval(model, opts, label_dir='label_pred', force=False):
+def evaluate(model, opts, label_dir='label_pred', force=False, retry_oom=False):
   global logger
 
   data_opts = opts['data']
@@ -53,8 +59,23 @@ def eval(model, opts, label_dir='label_pred', force=False):
     logger.warning('model is in DataParallel mode, but for evaluation batch size will be one. Getting root model.')
     model = model.module
 
+  # Setup output directory
+  out_dir = os.path.join(model.save_dir, label_dir)
+
+  if not os.path.isdir(out_dir):
+    os.makedirs(out_dir)
+
   # Setup Dataset and Augmentation
   test_dataset = get_dataset(['test'], **data_opts)['test']
+  if not force:
+    for idx in range(len(test_dataset) - 1, -1, -1):
+      im_path = test_dataset.image_filenames[idx]
+      dest_file = os.path.join(out_dir, os.path.splitext(os.path.basename(im_path))[0]) + '_label_pred.nrrd'
+      if os.path.isfile(dest_file):
+        logger.info('File %s already exists. Skipping this case', dest_file)
+        del test_dataset.image_filenames[idx]
+        del test_dataset.target_filenames[idx]
+
   test_dataset.transform = ts.Compose([ts.PadFactorSimpleITK(factor=model.config['division_factor']),
                                        ts.NormalizeSimpleITK(norm_flag=[True, False]),
                                        ts.SimpleITKtoTensor(),
@@ -62,12 +83,6 @@ def eval(model, opts, label_dir='label_pred', force=False):
                                        ts.TypeCast(['float', 'long'])
                                        ])
   test_loader = DataLoader(dataset=test_dataset, num_workers=4, batch_size=1, shuffle=False)
-
-  # Setup output directory
-  out_dir = os.path.join(model.save_dir, label_dir)
-
-  if not os.path.isdir(out_dir):
-    os.makedirs(out_dir)
 
   # Setup stats logger
   stat_logger = StatLogger()
@@ -85,9 +100,9 @@ def eval(model, opts, label_dir='label_pred', force=False):
 
         sitk.WriteImage(pred_seg, dest_file, True)
       except RuntimeError as e:
-        if str(e).lower().startswith('cuda runtime error (2)') or \
-           str(e).lower() == 'cuda error: out of memory':  # out of memory
-          logger.warning('Ran out of GPU memory for case %i! Will retry on cpu later...', iteration)
+        if 'cuda' in str(e).lower():  # out of memory
+          logger.warning('Ran out of GPU memory for case %i!', iteration)
+          logger.debug('Error details', exc_info=True)
           oom_iters.append(iteration)
           torch.cuda.empty_cache()
         else:
@@ -98,14 +113,14 @@ def eval(model, opts, label_dir='label_pred', force=False):
     if model.use_cuda:
       torch.cuda.empty_cache()
 
-  if len(oom_iters) > 0:
+  if len(oom_iters) > 0 and retry_oom:
     if isinstance(model.net, torch.nn.DataParallel):
       model.net = model.net.module
     model.net.cpu()
     model.gpu_ids = None
     model.use_cuda = False
 
-    for iteration in oom_iters:
+    for iteration in tqdm(oom_iters):
       image, label = test_dataset[iteration - 1]
       image = image.expand(1, *image.size())
       label = label.expand(1, *label.size())
@@ -170,6 +185,9 @@ if __name__ == '__main__':
 
   parser.add_argument('config', help='training config file')
   parser.add_argument('-f', '--force', help='If specified, overwrites existing files, otherwise, skips those cases')
+  parser.add_argument('-ro', '--retry-oom', action='store_true',
+                      help='If specified, will retry evaluation on cpu '
+                           'of cases that gave a cuda out-of-memory exception')
   args = parser.parse_args()
 
   main(args)
