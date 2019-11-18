@@ -99,7 +99,7 @@ def train(arguments):
     # Set up Logging
     if not os.path.isdir(checkpoints_dir):
         os.makedirs(checkpoints_dir)
-    log_file = os.path.join(checkpoints_dir, experiment + '.log')
+    log_file = os.path.join(checkpoints_dir, experiment.replace('/', '_') + '.log')
     configure_logging(logging.INFO, arguments.slack, log_file)
     logger = logging.getLogger()
     slack_logger = logging.getLogger('slack')

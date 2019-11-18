@@ -39,7 +39,7 @@ def main(arguments):
   experiment = json_opts['experiment_name']
 
   # Set up Logging
-  log_file = os.path.join(model_opts['checkpoints_dir'], experiment + '.log')
+  log_file = os.path.join(model_opts['checkpoints_dir'], experiment.replace('/', '_') + '.log')
   configure_logging(logging.INFO, slack=False, log_file=log_file)
 
   # Setup the NN Model
