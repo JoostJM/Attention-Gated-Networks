@@ -80,7 +80,11 @@ def main(arguments):
     while len(by_batch) > 0:
       for gpu in slots_used:
         while slots_used[gpu] < maxBatchSize:
-          slot_space = maxBatchSize - slots_used[gpu]
+          slot_space = maxBatchSize - slots_used[gpu] - 1  # subtract 1 (space for network weights)
+          if slot_space == 0:
+            # slot_space of 1 has no space for batchsize 1, so skip adding new networks
+            break
+
           i = 0
           while i < len(batch_sizes) - 1 and batch_sizes[i] > slot_space:
             i += 1
@@ -121,7 +125,7 @@ def main(arguments):
                             config_idx, len(workers), p.pid)
 
           workers.append((gpu, worker_batchSize, p, parent_results_pipe))
-          slots_used[gpu] += worker_batchSize
+          slots_used[gpu] += worker_batchSize + 1
 
       while np.all([p[2].is_alive() for p in workers]):
         time.sleep(30)
@@ -133,15 +137,18 @@ def main(arguments):
         logger.info('Worker %i is done!', i)
         gpu, worker_batchSize, p, results_pipe = workers[i]
         p.join()
-        slots_used[gpu] -= worker_batchSize
+        slots_used[gpu] -= (worker_batchSize + 1)
 
         # Store the results in the hyperspace
-        if results_pipe.poll(3):
-          hyperspace.add_result(results_pipe.recv())
-          hyperspace.save_space()
+        try:
+          if results_pipe.poll(3):
+            hyperspace.add_result(results_pipe.recv())
+            hyperspace.save_space()
 
-        # Remove the worker from the list
-        results_pipe.close()
+          # Remove the worker from the list
+          results_pipe.close()
+        except BrokenPipeError:
+          slack_logger.warning('Broken Pipe for process %s!', p.pid)
         del p
         del results_pipe
         del workers[i]
@@ -462,7 +469,7 @@ def dict_pretty_print(d):
     out_str = ''
     for k, v in six.iteritems(d):
       if isinstance(v, dict):
-        out_str += '\n%s%s:' % (prefix, k) + enum_d(v, prefix+'\t')
+        out_str += '\n%s%s:' % (prefix, k) + enum_d(v, prefix + '\t')
       else:
         out_str += '\n%s%s: %s' % (prefix, k, v)
     return out_str
