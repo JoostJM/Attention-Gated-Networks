@@ -27,9 +27,9 @@ def cross_entropy_3D(input, target, weight=None, size_average=True):
 
 
 class SoftDiceLoss(nn.Module):
-    def __init__(self, n_classes):
+    def __init__(self, n_classes, gpu_ids=None):
         super(SoftDiceLoss, self).__init__()
-        self.one_hot_encoder = One_Hot(n_classes).forward
+        self.one_hot_encoder = One_Hot(n_classes, gpu_ids).forward
         self.n_classes = n_classes
 
     def forward(self, input, target):
@@ -49,9 +49,9 @@ class SoftDiceLoss(nn.Module):
 
 
 class CustomSoftDiceLoss(nn.Module):
-    def __init__(self, n_classes, class_ids):
+    def __init__(self, n_classes, class_ids, gpu_ids=None):
         super(CustomSoftDiceLoss, self).__init__()
-        self.one_hot_encoder = One_Hot(n_classes).forward
+        self.one_hot_encoder = One_Hot(n_classes, gpu_ids).forward
         self.n_classes = n_classes
         self.class_ids = class_ids
 
@@ -73,10 +73,12 @@ class CustomSoftDiceLoss(nn.Module):
 
 
 class One_Hot(nn.Module):
-    def __init__(self, depth):
+    def __init__(self, depth, gpu_ids=None):
         super(One_Hot, self).__init__()
         self.depth = depth
-        self.ones = torch.sparse.torch.eye(depth).cuda()
+        self.ones = torch.eye(depth)
+        if gpu_ids is not None:
+            self.ones = self.ones.cuda(gpu_ids[0])
 
     def forward(self, X_in):
         n_dim = X_in.dim()

@@ -32,9 +32,9 @@ class FeedForwardSegmentation(BaseModel):
 
       # Define that it's a cuda array
       if idx == 0:
-        self.input = _input.cuda() if self.use_cuda else _input
+        self.input = _input.cuda(self.config['gpu_ids'][0]) if self.use_cuda else _input
       elif idx == 1:
-        self.target = Variable(_input.cuda()) if self.use_cuda else Variable(_input)
+        self.target = Variable(_input.cuda(self.config['gpu_ids'][0])) if self.use_cuda else Variable(_input)
         # assert self.input.size() == self.target.size()
 
   def forward(self, split):
@@ -108,8 +108,8 @@ class FeedForwardSegmentation(BaseModel):
     inp_array = Variable(torch.zeros(*size))
     out_array = Variable(torch.zeros(*size))
     if self.use_cuda:
-      inp_array = inp_array.cuda()
-      out_array = out_array.cuda()
+      inp_array = inp_array.cuda(self.config['gpu_ids'][0])
+      out_array = out_array.cuda(self.config['gpu_ids'][0])
     fp, bp = benchmark_fp_bp_time(self.net, inp_array, out_array, n_trial=50, show_pbar=True)
 
     bsize = size[0]

@@ -38,9 +38,9 @@ class FeedForwardClassifier(BaseModel):
 
       # Define that it's a cuda array
       if idx == 0:
-        self.input = _input.cuda() if self.use_cuda else _input
+        self.input = _input.cuda(self.config['gpu_ids'][0]) if self.use_cuda else _input
       elif idx == 1:
-        self.target = Variable(_input.cuda()) if self.use_cuda else Variable(_input)
+        self.target = Variable(_input.cuda(self.config['gpu_ids'][0])) if self.use_cuda else Variable(_input)
         assert self.input.shape[0] == self.target.shape[0]
 
   def forward(self, split):
@@ -150,8 +150,8 @@ class FeedForwardClassifier(BaseModel):
     if size is None:
       size = (8, 1, 192, 192)
 
-    inp_array = Variable(torch.rand(*size)).cuda()
-    out_array = Variable(torch.rand(*size)).cuda()
+    inp_array = Variable(torch.rand(*size)).cuda(self.config['gpu_ids'][0])
+    out_array = Variable(torch.rand(*size)).cuda(self.config['gpu_ids'][0])
     fp, bp = benchmark_fp_bp_time(self.net, inp_array, out_array)
 
     bsize = size[0]

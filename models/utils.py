@@ -36,9 +36,9 @@ def get_criterion(criterion, model_type, model):
     else:
       raise ValueError('Model Type %s not recognized' % model_type)
   elif criterion == 'dice_loss':
-    criterion = SoftDiceLoss(model.config['output_nc'])
+    criterion = SoftDiceLoss(model.config['output_nc'], model.config['gpu_ids'])
   elif criterion == 'dice_loss_pancreas_only':
-    criterion = CustomSoftDiceLoss(model.config['output_nc'], class_ids=[0, 2])
+    criterion = CustomSoftDiceLoss(model.config['output_nc'], class_ids=[0, 2], gpu_ids=model.config['gpu_ids'])
 
   return criterion
 

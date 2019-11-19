@@ -18,7 +18,7 @@ class AggregatedClassifier(FeedForwardClassifier):
     self.weight = weight
     self.aggregation = raw_opts['aggregation']
     self.aggregation_param = raw_opts['aggregation_param']
-    self.aggregation_weight = Variable(weight_t, volatile=True).view(-1, 1, 1).cuda()
+    self.aggregation_weight = Variable(weight_t, volatile=True).view(-1, 1, 1).cuda(self.config['gpu_ids'][0])
 
   def compute_loss(self):
     """Compute loss function. Iterate over multiple output"""
@@ -87,5 +87,5 @@ class AggregatedClassifier(FeedForwardClassifier):
       if epoch == late_gate:
         self.weight = self.config['raw']['weight'][:]
         weight_t = torch.from_numpy(np.array(self.weight, dtype=np.float32))
-        self.aggregation_weight = Variable(weight_t, volatile=True).view(-1, 1, 1).cuda()
+        self.aggregation_weight = Variable(weight_t, volatile=True).view(-1, 1, 1).cuda(self.config['gpu_ids'][0])
         self.logger.info('=' * 10, 'weight={}'.format(self.weight), '=' * 10)
