@@ -8,6 +8,7 @@ from os.path import isfile, join
 from .utils import is_image_file
 
 import SimpleITK as sitk
+import six
 
 
 class RectumSegmentationDataset(data.Dataset):
@@ -26,6 +27,13 @@ class RectumSegmentationDataset(data.Dataset):
     exclusion = kwargs.get('exclusion', None)
     self.apply_filter(root_dir, split, exclusion)
 
+    # Optional channel select
+    self.channels = kwargs.get('channels', None)
+    if self.channels is not None:
+      self.logger.info('Using channel selection %s', self.channels)
+    elif isinstance(self.channels, (list, tuple)) and len(self.channels) == 1:
+      self.channels = self.channels[0]
+
     # report the number of images in the dataset
     self.logger.info('Number of {0} images: {1}'.format(split, self.__len__()))
 
@@ -36,7 +44,7 @@ class RectumSegmentationDataset(data.Dataset):
     self.preload_data = preload_data
     if self.preload_data:
       self.logger.info('Preloading the {0} dataset ...'.format(split))
-      self.raw_images = [sitk.ReadImage(ii) for ii in self.image_filenames]
+      self.raw_images = [self._load_image(ii) for ii in self.image_filenames]
       self.raw_labels = [sitk.ReadImage(ii) for ii in self.target_filenames]
       self.logger.info('Loading is done\n')
 
@@ -75,9 +83,9 @@ class RectumSegmentationDataset(data.Dataset):
     # update the seed to avoid workers sample the same augmentation parameters
     np.random.seed(datetime.datetime.now().second + datetime.datetime.now().microsecond)
 
-    # load the nifti images
+    # load the images
     if not self.preload_data:
-      input = sitk.ReadImage(self.image_filenames[index])
+      input = self._load_image(self.image_filenames[index])
       target = sitk.ReadImage(self.target_filenames[index])
     else:
       input = self.raw_images[index]
@@ -91,3 +99,19 @@ class RectumSegmentationDataset(data.Dataset):
 
   def __len__(self):
     return len(self.image_filenames)
+
+  def _load_image(self, fname):
+    im = sitk.ReadImage(fname)
+    if self.channels is None:
+      return im
+
+    n_channels = im.GetNumberOfComponentsPerPixel()
+
+    if isinstance(self.channels, six.integer_types):
+      assert self.channels < n_channels, \
+          'Only % channels available, trying to select channel at index %i' % (n_channels, self.channels)
+      return sitk.VectorIndexSelectionCast(im, self.channels, sitk.sitkFloat32)
+    elif isinstance(self.channels, (list, tuple)):
+      assert np.max(self.channels) < n_channels, \
+          'Only % channels available, trying to select channel at index %i' % (n_channels, np.max(self.channels))
+      return sitk.Compose([sitk.VectorIndexSelectionCast(im, i, sitk.sitkFloat32) for i in self.channels])
