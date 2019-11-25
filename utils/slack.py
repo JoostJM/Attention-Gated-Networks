@@ -168,6 +168,7 @@ class SlackHandler(logging.Handler):
           break
         for m in msg_batch['messages']:
           if sender_pattern is not None and sender_pattern.search(m.get('username', '')) is None:
+            print('Sender not matched')
             continue  # Skip deleting messages not coming from the specified user
           if pattern is not None and pattern.search(m.get('text', '')) is None:
             print('Pattern not matched')
@@ -203,6 +204,6 @@ class SlackHandler(logging.Handler):
 if __name__ == '__main__':
   api = os.environ['SLACK_API_TOKEN']
   channel_id = SlackHandler.get_channel(api)
-  text_regex = None #'h0_unet-att_1x1x3-adc'
-  th = datetime.datetime.now() # .date()
+  text_regex = None  # 'h0_unet-att_1x1x3-adc'
+  th = datetime.datetime.now().date()  # datetime.datetime.strptime('2019-11-25 08:20:00', '%Y-%m-%d %H:%M:%S')
   SlackHandler.cleanup_channel(api, channel_id, 'Attention-Gated-Networks', th, text_regex)

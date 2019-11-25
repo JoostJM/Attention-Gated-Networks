@@ -157,7 +157,7 @@ class HyperSpace:
     if batchSize > maxBatchSize:
       b_i = batchSize / accumulate_iter
       b_m = batchSize % accumulate_iter
-      while b_i > maxBatchSize | b_m != 0:
+      while b_i > maxBatchSize or b_m != 0:
         accumulate_iter += 1
         b_i = batchSize / accumulate_iter
         b_m = batchSize % accumulate_iter
