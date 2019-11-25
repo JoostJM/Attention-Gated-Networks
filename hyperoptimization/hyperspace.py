@@ -65,9 +65,6 @@ class HyperSpace:
     # Only retain results for which hyperspaces have been defined
     h_results = h_file.join(current_str_params, how='inner')
     h_results = h_results.set_index('current_idx')
-    # Drop hyperspaces without a result
-    h_results = h_results[h_results.notnull().all(axis=1)]
-
     if rename_folders:
       index_map = current_str_params.join(h_indices, how='inner')
       index_map = index_map.set_index('old_idx')['current_idx']
@@ -93,7 +90,13 @@ class HyperSpace:
           self.logger.info('Renaming folder %s to %s', m, new_fldr)
           os.rename(os.path.join(self.out_dir, m) + '_', os.path.join(self.out_dir, new_fldr))
 
-    self.results = h_results.T
+    # Check to see if there exist results for this hyperspace
+    # If len(h_results.columns) == 0, then no results have been saved yet
+    if len(h_results.columns) > 1:
+      # Drop hyperspaces without a result
+      h_results = h_results[h_results.notnull().all(axis=1)]
+
+      self.results = h_results.T
 
     # Save the space
     if rename_folders:
