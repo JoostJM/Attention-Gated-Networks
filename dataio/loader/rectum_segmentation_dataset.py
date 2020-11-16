@@ -72,6 +72,7 @@ class RectumSegmentationDataset(data.Dataset):
       self.logger.info('Excluded %i cases from split %s', exclude_cnt, split)
 
   def __getitem__(self, index):
+    sitk.ProcessObject.SetGlobalDefaultNumberOfThreads(2)
     # update the seed to avoid workers sample the same augmentation parameters
     np.random.seed(datetime.datetime.now().second + datetime.datetime.now().microsecond)
 
