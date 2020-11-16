@@ -34,7 +34,7 @@ class AggregatedClassifier(FeedForwardClassifier):
         continue
       loss += lmda * self.criterion(prediction, self.target)
 
-    self.loss = loss
+    return loss
 
   def aggregate_output(self):
     """Given a list of predictions from net, make a decision based on aggreagation rule"""
@@ -66,8 +66,8 @@ class AggregatedClassifier(FeedForwardClassifier):
       self.aggregate_output()
 
   def backward(self):
-    self.compute_loss()
-    self.loss.backward()
+    loss = self.compute_loss()
+    loss.backward()
 
   def validate(self):
     self.net.eval()
