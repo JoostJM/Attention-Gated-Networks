@@ -19,20 +19,24 @@ from utils import configure_logging
 logger = logging.getLogger()
 
 
-def main(arguments):
+def main(**arguments):
   global logger
   # Parse input arguments
-  json_filename = arguments.config
+  json_filename = arguments['config']
 
   # Load options
   with open(json_filename) as j_fs:
     json_opts = json.load(j_fs)
 
   label_dir = json_opts.get('label_dir', 'label_pred')
+  if arguments.get('label_dir', None) is not None:
+    label_dir = arguments['label_dir']
 
   model_opts = json_opts['model']
 
   # Ensure options specify we want to evaluate a trained model
+  if model_opts['isTrain'] and model_opts['which_epoch'] == -1:
+    model_opts['which_epoch'] = json_opts['training']['n_epochs']
   model_opts['isTrain'] = False
   model_opts['continue_train'] = False
 
@@ -45,10 +49,10 @@ def main(arguments):
   # Setup the NN Model
   model = get_model(experiment, **model_opts)
 
-  evaluate(model, json_opts, label_dir=label_dir, force=arguments.force, retry_oom=arguments.retry_oom)
+  evaluate(model, json_opts, label_dir=label_dir, force=arguments['force'], retry_oom=arguments['retry_oom'], test_folder=arguments['test_folder'])
 
 
-def evaluate(model, opts, label_dir='label_pred', force=False, retry_oom=False):
+def evaluate(model, opts, label_dir='label_pred', force=False, retry_oom=False, test_folder='test'):
   global logger
 
   data_opts = opts['data']
@@ -66,7 +70,7 @@ def evaluate(model, opts, label_dir='label_pred', force=False, retry_oom=False):
     os.makedirs(out_dir)
 
   # Setup Dataset and Augmentation
-  test_dataset = get_dataset(['test'], **data_opts)['test']
+  test_dataset = get_dataset([test_folder], **data_opts)[test_folder]
   if not force:
     for idx in range(len(test_dataset) - 1, -1, -1):
       im_path = test_dataset.image_filenames[idx]
@@ -183,11 +187,18 @@ if __name__ == '__main__':
 
   parser = argparse.ArgumentParser(description='CNN Seg Training Function')
 
-  parser.add_argument('config', help='training config file')
-  parser.add_argument('-f', '--force', help='If specified, overwrites existing files, otherwise, skips those cases')
+  parser.add_argument('--config', '-c', action='append', help='training config file', required=True)
+  parser.add_argument('-f', '--force', action='store_true', help='If specified, overwrites existing files, otherwise, skips those cases')
   parser.add_argument('-ro', '--retry-oom', action='store_true',
                       help='If specified, will retry evaluation on cpu '
                            'of cases that gave a cuda out-of-memory exception')
+  parser.add_argument('--test-folder', '-tf', default='test')
+  parser.add_argument('--label-dir', '-ld', default=None)
+  
   args = parser.parse_args()
 
-  main(args)
+  config_dict = args.__dict__.copy()
+  
+  for cfg in config_dict.pop('config'):
+    main(config=cfg, **config_dict)
+

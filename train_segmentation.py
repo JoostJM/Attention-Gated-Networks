@@ -15,10 +15,10 @@ from utils import configure_logging
 from models import get_model
 
 
-def train(arguments):
+def train(**arguments):
   # Parse input arguments
-  json_filename = arguments.config
-  network_debug = arguments.debug
+  json_filename = arguments['config']
+  network_debug = arguments['debug']
 
   # Load options
   with open(json_filename) as j_fs:
@@ -36,7 +36,7 @@ def train(arguments):
   if not os.path.isdir(checkpoints_dir):
     os.makedirs(checkpoints_dir)
   log_file = os.path.join(checkpoints_dir, experiment.replace('/', '_') + '.log')
-  configure_logging(logging.INFO, slack=arguments.slack, log_file=log_file)
+  configure_logging(logging.INFO, slack=arguments['slack'], log_file=log_file)
   logger = logging.getLogger()
   slack_logger = logging.getLogger('slack')
 
@@ -146,7 +146,7 @@ def train(arguments):
                       experiment)
     model.save(epoch)
 
-    if arguments.eval:
+    if arguments['eval']:
       import eval_segmentation
       eval_segmentation.evaluate(model, json_opts)
   except Exception:
@@ -168,11 +168,14 @@ if __name__ == '__main__':
 
   parser = argparse.ArgumentParser(description='CNN Seg Training Function')
 
-  parser.add_argument('-c', '--config', help='training config file', required=True)
+  parser.add_argument('-c', '--config', action='append', help='training config file', required=True)
   parser.add_argument('-d', '--debug', help='returns number of parameters and bp/fp runtime', action='store_true')
   parser.add_argument('-s', '--slack', help='enables logging to Slack Messenger', action='store_true')
   parser.add_argument('-e', '--eval', help='enables creating evaluation of the final model', action='store_true')
 
   args = parser.parse_args()
 
-  train(args)
+  config_dict = args.__dict__.copy()
+  
+  for cfg in config_dict.pop('config'):
+    train(config=cfg, **config_dict)
