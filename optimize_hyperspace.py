@@ -61,6 +61,8 @@ def main(arguments):
       except:
         logger.warning('Unable to load hyperspace results from file %s!', hyperspace.fname, exc_info=True)
 
+    logger.info('hyperspace defined: %i configurations', len(hyperspace))
+
     hyperspace.save_space()
 
     by_batch = {}
@@ -79,7 +81,7 @@ def main(arguments):
 
     while len(by_batch) > 0:
       for gpu in slots_used:
-        while slots_used[gpu] < maxBatchSize:
+        while slots_used[gpu] < maxBatchSize and len(batch_sizes) > 0:
           slot_space = maxBatchSize - slots_used[gpu] - 1  # subtract 1 (space for network weights)
           if slot_space == 0:
             # slot_space of 1 has no space for batchsize 1, so skip adding new networks
@@ -130,7 +132,35 @@ def main(arguments):
       while np.all([p[2].is_alive() for p in workers]):
         time.sleep(30)
 
-      for i in range(len(workers) - 1, -1, -1):
+      for i in range(len(workers) - 1, -1, -1):  # Iterate in reverse to prevent misalignment when deleting workers
+        if workers[i][2].is_alive():
+          continue
+        # worker is done! clear up the space for new worker
+        logger.info('Worker %i is done!', i)
+        gpu, worker_batchSize, p, results_pipe = workers[i]
+        p.join()
+        slots_used[gpu] -= (worker_batchSize + 1)
+
+        # Store the results in the hyperspace
+        try:
+          if results_pipe.poll(3):
+            hyperspace.add_result(results_pipe.recv())
+            hyperspace.save_space()
+
+          # Remove the worker from the list
+          results_pipe.close()
+        except BrokenPipeError:
+          slack_logger.warning('Broken Pipe for process %s!', p.pid)
+        del p
+        del results_pipe
+        del workers[i]
+    
+    # Wait untill all workers have finished!
+    while len(workers) > 0:
+      while np.all([p[2].is_alive() for p in workers]):
+        time.sleep(30)
+
+      for i in range(len(workers) - 1, -1, -1):  # Iterate in reverse to prevent misalignment when deleting workers
         if workers[i][2].is_alive():
           continue
         # worker is done! clear up the space for new worker
@@ -186,6 +216,8 @@ def train(json_opts):
 
   # Set the current thread name to the name of the experiment
   threading.current_thread().setName(experiment)
+  
+  torch.set_num_threads(8)
 
   # Try to enable cudnn benchmark if cuda will be used
   try:
@@ -202,8 +234,8 @@ def train(json_opts):
 
   # Setup Data and Augmentation
   datasets = get_dataset(['train', 'validation'], **data_opts)
-  train_loader = DataLoader(dataset=datasets['train'], num_workers=4, batch_size=batchSize, shuffle=True)
-  valid_loader = DataLoader(dataset=datasets['validation'], num_workers=4, batch_size=batchSize, shuffle=False)
+  train_loader = DataLoader(dataset=datasets['train'], num_workers=2, batch_size=batchSize, shuffle=True)
+  valid_loader = DataLoader(dataset=datasets['validation'], num_workers=2, batch_size=batchSize, shuffle=False)
 
   # Visualisation Parameters
   visualizer = Visualiser(experiment, json_opts['visualisation'], save_dir=model.save_dir)
