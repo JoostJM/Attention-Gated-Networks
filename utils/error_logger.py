@@ -3,7 +3,7 @@ from .util import csv_write
 
 
 class BaseMeter(object):
-    """Just a place holderb"""
+    """Just a place holder"""
 
     def __init__(self, name):
         self.reset()
@@ -25,15 +25,16 @@ class AverageMeter(object):
     def __init__(self, name):
         self.reset()
         self.name = name
+        self.avg = 0.0
+        self.sum = 0.0
+        self.count = 0.0
 
     def reset(self):
-        self.val = 0.0
         self.avg = 0.0
         self.sum = 0.0
         self.count = 0.0
 
     def update(self, val, n=1.0):
-        self.val = val
         self.sum += val * n
         self.count += n
         self.avg = self.sum / self.count
@@ -41,12 +42,15 @@ class AverageMeter(object):
     def get_value(self):
         return self.avg
 
+
 class StatMeter(object):
     """Computes and stores the error vals and image names"""
 
     def __init__(self, name, csv_name=None):
         self.reset()
         self.name = name
+        self.vals = []
+        self.img_names = []
 
     def reset(self):
         self.vals = []
@@ -97,12 +101,12 @@ class ErrorLogger(object):
 class StatLogger(object):
 
     def __init__(self):
-        self.variables = {'train': dict(),
-                          'validation': dict(),
-                          'test': dict()
-                          }
+        self.variables = {}
 
     def update(self, input_dict, split):
+        if split not in self.variables:
+            self.variables[split] = dict()
+
         img_name = input_dict.pop('img_name', None)
         for key, value in input_dict.items():
             if key not in self.variables[split]:
@@ -124,9 +128,4 @@ class StatLogger(object):
         csv_write(out_csv_name, csv_header, csv_values)
 
     def reset(self):
-        for key, meter_obj in self.variables['train'].items():
-            meter_obj.reset()
-        for key, meter_obj in self.variables['validation'].items():
-            meter_obj.reset()
-        for key, meter_obj in self.variables['test'].items():
-            meter_obj.reset()
+        self.variables = {}

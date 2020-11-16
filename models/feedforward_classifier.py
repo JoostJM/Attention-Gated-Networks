@@ -99,6 +99,3 @@ class FeedForwardClassifier(BaseModel):
     epoch_label = network_label.split('_')[0]
     print('Loading the model {0} - epoch {1}'.format(network_label, epoch_label))
     network.load_state_dict(torch.load(network_filepath), strict=strict)
-
-  def update_state(self, epoch):
-    pass
