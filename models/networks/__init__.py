@@ -7,6 +7,7 @@ from .unet_CT_dsv_3D import *
 from .unet_CT_single_att_dsv_3D import *
 from .unet_CT_multi_att_dsv_3D import *
 from .sononet import *
+from .sononet3D import *
 from .sononet_grid_attention import *
 
 
@@ -64,7 +65,7 @@ def _get_model_instance(name, tensor_dim):
     'unet_ct_dsv': {'3D': unet_CT_dsv_3D},
     'unet_ct_single_att_dsv': {'3D': unet_CT_single_att_dsv_3D},
     'unet_ct_multi_att_dsv': {'3D': unet_CT_multi_att_dsv_3D},
-    'sononet': {'2D': sononet},
-    'sononet2': {'2D': sononet2},
+    'sononet': {'2D': sononet, '3D': sononet3D},
+    'sononet2': {'2D': sononet2, '3D': sononet3D2},
     'sononet_grid_attention': {'2D': sononet_grid_attention}
   }[name][tensor_dim]

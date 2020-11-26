@@ -17,6 +17,19 @@ class conv2DBatchNorm(nn.Module):
         return outputs
 
 
+class conv3DBatchNorm(nn.Module):
+    def __init__(self, in_channels, n_filters, k_size,  stride, padding, bias=True):
+        super(conv3DBatchNorm, self).__init__()
+
+        self.cb_unit = nn.Sequential(nn.Conv3d(int(in_channels), int(n_filters), kernel_size=k_size,
+                                               padding=padding, stride=stride, bias=bias),
+                                 nn.BatchNorm3d(int(n_filters)),)
+
+    def forward(self, inputs):
+        outputs = self.cb_unit(inputs)
+        return outputs
+
+
 class deconv2DBatchNorm(nn.Module):
     def __init__(self, in_channels, n_filters, k_size,  stride, padding, bias=True):
         super(deconv2DBatchNorm, self).__init__()
@@ -37,6 +50,20 @@ class conv2DBatchNormRelu(nn.Module):
         self.cbr_unit = nn.Sequential(nn.Conv2d(int(in_channels), int(n_filters), kernel_size=k_size,
                                                 padding=padding, stride=stride, bias=bias),
                                  nn.BatchNorm2d(int(n_filters)),
+                                 nn.ReLU(inplace=True),)
+
+    def forward(self, inputs):
+        outputs = self.cbr_unit(inputs)
+        return outputs
+
+
+class conv3DBatchNormRelu(nn.Module):
+    def __init__(self, in_channels, n_filters, k_size,  stride, padding, bias=True):
+        super(conv3DBatchNormRelu, self).__init__()
+
+        self.cbr_unit = nn.Sequential(nn.Conv3d(int(in_channels), int(n_filters), kernel_size=k_size,
+                                                padding=padding, stride=stride, bias=bias),
+                                 nn.BatchNorm3d(int(n_filters)),
                                  nn.ReLU(inplace=True),)
 
     def forward(self, inputs):
@@ -96,30 +123,33 @@ class unetConv2(nn.Module):
 
 
 class UnetConv3(nn.Module):
-    def __init__(self, in_size, out_size, is_batchnorm, kernel_size=(3,3,1), padding_size=(1,1,0), init_stride=(1,1,1)):
+    def __init__(self, in_size, out_size, is_batchnorm, kernel_size=(3,3,1), padding_size=(1,1,0), init_stride=(1,1,1), n=2):
         super(UnetConv3, self).__init__()
-
+        self.n = n
         if is_batchnorm:
-            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, init_stride, padding_size),
+            for i in range(1, n + 1):
+                conv = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, init_stride, padding_size),
                                        nn.BatchNorm3d(out_size),
                                        nn.ReLU(inplace=True),)
-            self.conv2 = nn.Sequential(nn.Conv3d(out_size, out_size, kernel_size, 1, padding_size),
-                                       nn.BatchNorm3d(out_size),
-                                       nn.ReLU(inplace=True),)
+                setattr(self, 'conv%d' % i, conv)
+                in_size = out_size
         else:
-            self.conv1 = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, init_stride, padding_size),
+            for i in range(1, n + 1):
+                conv = nn.Sequential(nn.Conv3d(in_size, out_size, kernel_size, init_stride, padding_size),
                                        nn.ReLU(inplace=True),)
-            self.conv2 = nn.Sequential(nn.Conv3d(out_size, out_size, kernel_size, 1, padding_size),
-                                       nn.ReLU(inplace=True),)
+                setattr(self, 'conv%d' % i, conv)
+                in_size = out_size
 
         # initialise the blocks
         for m in self.children():
             init_weights(m, init_type='kaiming')
 
     def forward(self, inputs):
-        outputs = self.conv1(inputs)
-        outputs = self.conv2(outputs)
-        return outputs
+        x = inputs
+        for i in range(1, self.n + 1):
+            conv = getattr(self, 'conv%d' % i)
+            x = conv(x)
+        return x
 
 
 class FCNConv3(nn.Module):
